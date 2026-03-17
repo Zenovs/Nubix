@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections
+import time
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
@@ -83,9 +84,12 @@ class _SparklineWidget(QWidget):
 class TransferRateWidget(QWidget):
     """Shows current download speed as text + sparkline."""
 
+    _UPDATE_INTERVAL = 5.0  # seconds between display refreshes
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background: transparent;")
+        self._last_update: float = 0.0
 
         header = QLabel("Transfer Speed")
         header.setStyleSheet(
@@ -112,5 +116,8 @@ class TransferRateWidget(QWidget):
         layout.addWidget(self._sparkline)
 
     def update_speed(self, bps: float) -> None:
-        self._label.setText(_format_speed(bps))
-        self._sparkline.push(bps)
+        now = time.monotonic()
+        if now - self._last_update >= self._UPDATE_INTERVAL:
+            self._last_update = now
+            self._label.setText(_format_speed(bps))
+            self._sparkline.push(bps)

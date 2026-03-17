@@ -82,11 +82,23 @@ class DashboardWidget(QWidget):
         self._cards_layout = QVBoxLayout(cards_container)
         self._cards_layout.setContentsMargins(0, 0, 8, 0)
         self._cards_layout.setSpacing(12)
-        # ASCII art — use HTML so we can set different styles per section
+
+        # Empty state — shown only when no connections exist
+        self._empty_label = QLabel(
+            "<p style='color:#6B6B8A; font-size:13px; margin:0;'>"
+            "No connections yet — click  <b>＋ Add Connection</b>  to get started.</p>"
+        )
+        self._empty_label.setTextFormat(Qt.TextFormat.RichText)
+        self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setStyleSheet("background: transparent;")
+        self._cards_layout.addWidget(self._empty_label)
+        self._cards_layout.addStretch()
+
+        # ASCII logo — always visible at the bottom
         _ASCII_HTML = (
             "<pre style='"
-            "font-family: monospace; font-size: 14px; font-weight: bold;"
-            " color: #4A4A70; line-height: 1.25; letter-spacing: 0;"
+            "font-family: monospace; font-size: 11px; font-weight: bold;"
+            " color: #2E2E4A; line-height: 1.2; letter-spacing: 0;"
             " margin: 0; padding: 0;'"
             ">"
             "███╗   ██╗██╗   ██╗██████╗ ██╗██╗  ██╗\n"
@@ -96,17 +108,12 @@ class DashboardWidget(QWidget):
             "██║ ╚████║╚██████╔╝██████╔╝██║██╔╝ ██╗\n"
             "╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═╝"
             "</pre>"
-            "<p style='color:#5A5A80; font-size:13px; margin-top:12px;'>"
-            "Cloud Sync Manager</p>"
-            "<p style='color:#6B6B8A; font-size:12px; margin-top:4px;'>"
-            "No connections yet — click  <b>＋ Add Connection</b>  to get started.</p>"
         )
-        self._empty_label = QLabel(_ASCII_HTML)
-        self._empty_label.setTextFormat(Qt.TextFormat.RichText)
-        self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_label.setStyleSheet("background: transparent;")
-        self._cards_layout.addWidget(self._empty_label)
-        self._cards_layout.addStretch()
+        self._ascii_footer = QLabel(_ASCII_HTML)
+        self._ascii_footer.setTextFormat(Qt.TextFormat.RichText)
+        self._ascii_footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ascii_footer.setStyleSheet("background: transparent;")
+        self._cards_layout.addWidget(self._ascii_footer)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -158,9 +165,9 @@ class DashboardWidget(QWidget):
         if self._empty_label.isVisible():
             self._empty_label.hide()
 
-        # Insert before the stretch
+        # Insert before the stretch (which is second-to-last) and ascii footer (last)
         count = self._cards_layout.count()
-        self._cards_layout.insertWidget(count - 1, card)
+        self._cards_layout.insertWidget(count - 2, card)
 
     def _on_remote_added(self, rc: RemoteConfig):
         self._add_card(rc)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.16] — 2026-03-17
+
+### Changes
+
+- ASCII NUBIX logo moved to bottom of dashboard — always visible, even when connections are present
+- Transfer speed display now updates every 5 seconds instead of every 1 second — no more jumping numbers
+
 ## [0.2.15] — 2026-03-17
 
 ### Features
