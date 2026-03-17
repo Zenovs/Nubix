@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.12] — 2026-03-17
+
+### Changes
+
+- OAuth error message now shows rclone's actual output so the real failure reason is visible in the UI instead of the generic "Authorization failed" message
+
 ## [0.2.11] — 2026-03-17
 
 ### Bugfixes
