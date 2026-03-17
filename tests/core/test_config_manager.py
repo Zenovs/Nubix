@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from nubix.core.config_manager import ConfigManager
+
+# Ensure a QApplication exists for Signal tests
+_app = QApplication.instance() or QApplication(sys.argv)
 
 
 def test_default_values_are_set(tmp_config_dir):
@@ -32,9 +38,6 @@ def test_config_persisted_across_instances(tmp_config_dir):
 
 
 def test_config_changed_signal_emitted(tmp_config_dir):
-    from PySide6.QtWidgets import QApplication
-    import sys
-    app = QApplication.instance() or QApplication(sys.argv)
     config = ConfigManager()
     received = []
     config.config_changed.connect(lambda k, v: received.append((k, v)))

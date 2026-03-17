@@ -63,6 +63,7 @@ class RemoteConfig:
 
     def to_sync_job(self) -> SyncJob:
         from pathlib import Path
+
         return SyncJob(
             remote_id=self.remote_id,
             provider_type=self.provider_type,
@@ -78,11 +79,13 @@ class RemoteConfig:
 class RemoteRegistry(QObject):
     """Maintains the list of configured remotes."""
 
-    remote_added = Signal(object)    # RemoteConfig
-    remote_removed = Signal(str)     # remote_id
+    remote_added = Signal(object)  # RemoteConfig
+    remote_removed = Signal(str)  # remote_id
     remote_updated = Signal(object)  # RemoteConfig
 
-    def __init__(self, config: ConfigManager, vault: CredentialVault, parent: QObject | None = None):
+    def __init__(
+        self, config: ConfigManager, vault: CredentialVault, parent: QObject | None = None
+    ):
         super().__init__(parent)
         self._config = config
         self._vault = vault

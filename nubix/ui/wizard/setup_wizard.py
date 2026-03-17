@@ -78,6 +78,7 @@ class SetupWizard(QWizard):
 
         # Derive a unique remote_id
         import uuid
+
         remote_id = f"{provider_id}_{str(uuid.uuid4())[:6]}"
 
         # Configure rclone remote
@@ -94,20 +95,23 @@ class SetupWizard(QWizard):
 
         # Register remote
         from nubix.providers import PROVIDER_REGISTRY
+
         provider_names = {
             "gdrive": "Google Drive",
             "dropbox": "Dropbox",
             "nextcloud": "Nextcloud",
         }
-        rc = self._registry.add_remote({
-            "remote_id": remote_id,
-            "display_name": provider_names.get(provider_id, provider_id),
-            "provider_type": provider_id,
-            "local_path": local_path,
-            "remote_path": "",
-            "sync_mode": sync_mode_value,
-            "is_enabled": True,
-        })
+        rc = self._registry.add_remote(
+            {
+                "remote_id": remote_id,
+                "display_name": provider_names.get(provider_id, provider_id),
+                "provider_type": provider_id,
+                "local_path": local_path,
+                "remote_path": "",
+                "sync_mode": sync_mode_value,
+                "is_enabled": True,
+            }
+        )
 
         logger.info("Remote %s added successfully", remote_id)
 

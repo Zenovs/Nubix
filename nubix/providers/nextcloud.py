@@ -31,15 +31,23 @@ class NextcloudProvider(BaseProvider):
         return "webdav"
 
     def get_rclone_config_args(self, credentials: dict) -> list[str]:
-        url = credentials.get("url", "").rstrip("/") + "/remote.php/dav/files/" + credentials.get("username", "")
+        url = (
+            credentials.get("url", "").rstrip("/")
+            + "/remote.php/dav/files/"
+            + credentials.get("username", "")
+        )
         password = credentials.get("password", "")
         obscured = _rclone_obscure(password)
         return [
             self.get_rclone_type(),
-            "url", url,
-            "vendor", "nextcloud",
-            "user", credentials.get("username", ""),
-            "pass", obscured,
+            "url",
+            url,
+            "vendor",
+            "nextcloud",
+            "user",
+            credentials.get("username", ""),
+            "pass",
+            obscured,
         ]
 
     def validate_credentials(self, credentials: dict) -> bool:

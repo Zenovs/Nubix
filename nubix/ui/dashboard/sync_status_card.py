@@ -38,8 +38,8 @@ def _format_speed(bps: float) -> str:
 class SyncStatusCard(QFrame):
     """Dashboard card for one configured remote."""
 
-    sync_requested = Signal(str)    # remote_id
-    stop_requested = Signal(str)    # remote_id
+    sync_requested = Signal(str)  # remote_id
+    stop_requested = Signal(str)  # remote_id
     settings_requested = Signal(str)  # remote_id
 
     def __init__(self, remote: RemoteConfig, parent=None):

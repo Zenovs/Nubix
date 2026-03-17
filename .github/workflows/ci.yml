@@ -25,9 +25,12 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libgl1 libglib2.0-0 libdbus-1-3 \
+          sudo apt-get install -y \
+            libgl1 libglib2.0-0 libdbus-1-3 \
+            libegl1 libegl-mesa0 \
             libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
-            libxcb-keysyms1 xvfb
+            libxcb-keysyms1 libxcb-cursor0 \
+            xvfb
 
       - name: Install Python dependencies
         run: |
@@ -36,16 +39,25 @@ jobs:
 
       - name: Run tests (headless)
         run: |
-          xvfb-run --auto-servernum pytest tests/ -v --tb=short
+          xvfb-run --auto-servernum \
+            -s "-screen 0 1280x720x24" \
+            pytest tests/ -v --tb=short
 
   lint:
     name: Lint
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install ruff black
-      - run: ruff check nubix/ tests/
-      - run: black --check nubix/ tests/ main.py
+
+      - name: Install linters
+        run: pip install ruff black
+
+      - name: ruff
+        run: ruff check nubix/ tests/ main.py
+
+      - name: black
+        run: black --check nubix/ tests/ main.py

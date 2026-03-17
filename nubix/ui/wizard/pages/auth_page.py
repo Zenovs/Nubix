@@ -22,7 +22,7 @@ from nubix.providers.base_provider import AuthType
 class _RcloneAuthThread(QThread):
     """Runs `rclone authorize <type>` in a background thread."""
 
-    auth_done = Signal(str)   # token JSON string
+    auth_done = Signal(str)  # token JSON string
     auth_error = Signal(str)
 
     def __init__(self, provider_type: str, parent=None):
@@ -71,6 +71,7 @@ class AuthPage(QWizardPage):
 
     def _make_oauth_widget(self):
         from PySide6.QtWidgets import QWidget
+
         w = QWidget()
         vl = QVBoxLayout(w)
         self._oauth_info = QLabel(
@@ -91,6 +92,7 @@ class AuthPage(QWizardPage):
 
     def _make_webdav_widget(self):
         from PySide6.QtWidgets import QWidget
+
         w = QWidget()
         form = QFormLayout(w)
 
@@ -167,11 +169,13 @@ class AuthPage(QWizardPage):
             return False
 
         if provider.auth_type == AuthType.WEBDAV_BASIC:
-            return all([
-                self._url_edit.text().strip(),
-                self._user_edit.text().strip(),
-                self._pass_edit.text().strip(),
-            ])
+            return all(
+                [
+                    self._url_edit.text().strip(),
+                    self._user_edit.text().strip(),
+                    self._pass_edit.text().strip(),
+                ]
+            )
         else:
             return bool(self._token)
 

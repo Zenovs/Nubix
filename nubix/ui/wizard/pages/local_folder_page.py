@@ -74,6 +74,7 @@ class LocalFolderPage(QWizardPage):
             self._warn_label.setText("")
             return True  # Will be created
         import os
+
         if not os.access(str(parent), os.W_OK):
             self._warn_label.setText("That folder is not writable.")
             return False

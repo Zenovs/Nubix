@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def _windows_overlap(windows: list[TimeWindow]) -> bool:
     for i, w1 in enumerate(windows):
-        for w2 in windows[i + 1:]:
+        for w2 in windows[i + 1 :]:
             if w1.overlaps(w2):
                 return True
     return False
@@ -54,6 +54,7 @@ def _next_window_start(windows: list[TimeWindow]) -> Optional[datetime]:
                 )
                 if day_offset > 0:
                     from datetime import timedelta
+
                     candidate += timedelta(days=day_offset)
                 if candidate > now:
                     candidates.append(candidate)
@@ -64,12 +65,12 @@ def _next_window_start(windows: list[TimeWindow]) -> Optional[datetime]:
 class Scheduler(QObject):
     """Checks schedule windows every minute and triggers sync jobs."""
 
-    trigger_start = Signal(str)   # job_id — start this job
-    trigger_stop = Signal(str)    # job_id — stop this job
+    trigger_start = Signal(str)  # job_id — start this job
+    trigger_stop = Signal(str)  # job_id — stop this job
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._jobs: dict[str, SyncJob] = {}   # job_id -> SyncJob
+        self._jobs: dict[str, SyncJob] = {}  # job_id -> SyncJob
         self._was_in_window: dict[str, bool] = {}
 
         self._timer = QTimer(self)

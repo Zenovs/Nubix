@@ -12,6 +12,7 @@ def _make_colored_icon(color: str, size: int = 22) -> QIcon:
     pix = QPixmap(size, size)
     pix.fill(QColor(0, 0, 0, 0))
     from PySide6.QtGui import QPainter, QBrush
+
     painter = QPainter(pix)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setBrush(QBrush(QColor(color)))

@@ -31,11 +31,13 @@ class UpdateDialog(QDialog):
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QLabel(
-            f"<h3>Nubix {self._release.version} is available</h3>"
-            f"<p>You are running version "
-            f"<b>{self._updater.current_version}</b>.</p>"
-        ))
+        layout.addWidget(
+            QLabel(
+                f"<h3>Nubix {self._release.version} is available</h3>"
+                f"<p>You are running version "
+                f"<b>{self._updater.current_version}</b>.</p>"
+            )
+        )
 
         notes = QTextBrowser()
         notes.setMarkdown(self._release.body or "_No release notes provided._")
@@ -100,6 +102,8 @@ class UpdateDialog(QDialog):
 
     def _on_restart(self):
         self._status_label.setText("Update installed! Restarting…")
-        import sys, os
+        import os
+        import sys
+
         # Re-exec the current process with the same arguments
         os.execv(sys.executable, [sys.executable] + sys.argv)

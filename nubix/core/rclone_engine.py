@@ -58,10 +58,10 @@ class RcloneProcess(QObject):
         finished(int)  — exit code
     """
 
-    progress_updated = Signal(object)   # TransferStats
-    file_transferred = Signal(str)      # filename
-    error_occurred = Signal(str)        # human-readable error
-    finished = Signal(int)              # exit code
+    progress_updated = Signal(object)  # TransferStats
+    file_transferred = Signal(str)  # filename
+    error_occurred = Signal(str)  # human-readable error
+    finished = Signal(int)  # exit code
 
     def __init__(self, process: subprocess.Popen, job_id: str, parent: QObject | None = None):
         super().__init__(parent)
@@ -178,8 +178,10 @@ class RcloneEngine(QObject):
         path = f"{remote_id}:{remote_path}"
         result = subprocess.run(
             [
-                self._binary, "lsjson",
-                "--config", str(RCLONE_CONFIG_FILE),
+                self._binary,
+                "lsjson",
+                "--config",
+                str(RCLONE_CONFIG_FILE),
                 "--dirs-only",
                 "--no-modtime",
                 path,
@@ -192,6 +194,7 @@ class RcloneEngine(QObject):
             logger.warning("lsjson failed: %s", result.stderr)
             return []
         import json
+
         try:
             return json.loads(result.stdout) or []
         except Exception:
@@ -203,10 +206,13 @@ class RcloneEngine(QObject):
         config_args example: ["gdrive", "--drive-client-id", "xxx", ...]
         """
         cmd = [
-            self._binary, "config", "create",
+            self._binary,
+            "config",
+            "create",
             remote_id,
             *config_args,
-            "--config", str(RCLONE_CONFIG_FILE),
+            "--config",
+            str(RCLONE_CONFIG_FILE),
             "--non-interactive",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -257,7 +263,8 @@ class RcloneEngine(QObject):
             subcmd,
             src,
             dst,
-            "--config", str(RCLONE_CONFIG_FILE),
+            "--config",
+            str(RCLONE_CONFIG_FILE),
             "--stats=1s",
             "--stats-one-line",
             "--use-json-log",
@@ -278,6 +285,7 @@ class RcloneEngine(QObject):
         """Set bandwidth limit via rclone RC (requires --rc to be running)."""
         try:
             import requests
+
             resp = requests.post(
                 "http://localhost:5572/core/bwlimit",
                 json={"rate": limit},

@@ -111,6 +111,7 @@ class NubixApp:
 
         # Check for updates after a short delay (don't block startup)
         from PySide6.QtCore import QTimer
+
         QTimer.singleShot(5000, self._updater.check_for_updates)
 
         # Auto-start scheduled jobs
@@ -138,6 +139,7 @@ class NubixApp:
 
     def _on_update_available(self, release):
         from nubix.ui.update_dialog import UpdateDialog
+
         dlg = UpdateDialog(release, self._updater, self._window)
         dlg.exec()
 
@@ -168,29 +170,64 @@ class _NullSyncManager:
     progress_updated = property(lambda self: _NullSignal())
     file_transferred = property(lambda self: _NullSignal())
 
-    def start_job(self, job): pass
-    def stop_job(self, job_id): pass
-    def pause_job(self, job_id): pass
-    def resume_job(self, job_id): pass
-    def stop_all(self): pass
-    def is_any_active(self): return False
-    def active_job_ids(self): return []
-    def get_status(self, job_id): from nubix.core.sync_job import JobStatus; return JobStatus.IDLE
+    def start_job(self, job):
+        pass
+
+    def stop_job(self, job_id):
+        pass
+
+    def pause_job(self, job_id):
+        pass
+
+    def resume_job(self, job_id):
+        pass
+
+    def stop_all(self):
+        pass
+
+    def is_any_active(self):
+        return False
+
+    def active_job_ids(self):
+        return []
+
+    def get_status(self, job_id):
+        from nubix.core.sync_job import JobStatus
+
+        return JobStatus.IDLE
 
 
 class _NullEngine:
     """No-op engine when rclone is not available."""
 
-    def check_version(self): return "not installed"
-    def list_remotes(self): return []
-    def list_remote_dirs(self, *a, **kw): return []
-    def configure_remote(self, *a, **kw): return False
-    def delete_remote(self, *a, **kw): return False
-    def start_sync(self, job): raise RcloneNotFoundError()
-    def set_bandwidth_limit(self, limit): return False
+    def check_version(self):
+        return "not installed"
+
+    def list_remotes(self):
+        return []
+
+    def list_remote_dirs(self, *a, **kw):
+        return []
+
+    def configure_remote(self, *a, **kw):
+        return False
+
+    def delete_remote(self, *a, **kw):
+        return False
+
+    def start_sync(self, job):
+        raise RcloneNotFoundError()
+
+    def set_bandwidth_limit(self, limit):
+        return False
 
 
 class _NullSignal:
-    def connect(self, *a, **kw): pass
-    def disconnect(self, *a, **kw): pass
-    def emit(self, *a, **kw): pass
+    def connect(self, *a, **kw):
+        pass
+
+    def disconnect(self, *a, **kw):
+        pass
+
+    def emit(self, *a, **kw):
+        pass

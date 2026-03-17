@@ -128,11 +128,7 @@ class _FileBackend:
 
         # Use machine-id as password (not a secret, but makes the file machine-specific)
         machine_id_file = Path("/etc/machine-id")
-        password = (
-            machine_id_file.read_bytes()
-            if machine_id_file.exists()
-            else os.urandom(32)
-        )
+        password = machine_id_file.read_bytes() if machine_id_file.exists() else os.urandom(32)
         salt = b"nubix-vault-v1"
         kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
         return base64.urlsafe_b64encode(kdf.derive(password))

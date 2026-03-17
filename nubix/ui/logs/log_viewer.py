@@ -91,9 +91,7 @@ class LogViewer(QWidget):
         self._text.setTextCursor(cursor)
         self._text.appendPlainText(msg)
         if self._auto_scroll:
-            self._text.verticalScrollBar().setValue(
-                self._text.verticalScrollBar().maximum()
-            )
+            self._text.verticalScrollBar().setValue(self._text.verticalScrollBar().maximum())
 
     def _on_scroll_change(self, value: int):
         max_val = self._text.verticalScrollBar().maximum()
@@ -104,8 +102,10 @@ class LogViewer(QWidget):
 
     def _export(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Log", f"nubix_log_{datetime.now():%Y%m%d_%H%M%S}.txt",
-            "Text files (*.txt)"
+            self,
+            "Export Log",
+            f"nubix_log_{datetime.now():%Y%m%d_%H%M%S}.txt",
+            "Text files (*.txt)",
         )
         if path:
             with open(path, "w") as f:

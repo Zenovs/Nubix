@@ -19,13 +19,13 @@ class SyncManager(QObject):
     """Manages active sync jobs and aggregates their signals."""
 
     # Aggregated signals
-    job_started = Signal(str)                   # job_id
-    job_finished = Signal(str, int)             # job_id, exit_code
-    job_failed = Signal(str, str)               # job_id, error_message
-    job_status_changed = Signal(str, str)       # job_id, JobStatus value
-    progress_updated = Signal(str, object)      # job_id, TransferStats
-    file_transferred = Signal(str, str)         # job_id, filename
-    any_job_active = Signal(bool)               # True if any job is running
+    job_started = Signal(str)  # job_id
+    job_finished = Signal(str, int)  # job_id, exit_code
+    job_failed = Signal(str, str)  # job_id, error_message
+    job_status_changed = Signal(str, str)  # job_id, JobStatus value
+    progress_updated = Signal(str, object)  # job_id, TransferStats
+    file_transferred = Signal(str, str)  # job_id, filename
+    any_job_active = Signal(bool)  # True if any job is running
 
     def __init__(self, engine: RcloneEngine, parent: QObject | None = None):
         super().__init__(parent)
@@ -53,12 +53,8 @@ class SyncManager(QObject):
             process.file_transferred.connect(
                 lambda fname, jid=job.job_id: self.file_transferred.emit(jid, fname)
             )
-            process.error_occurred.connect(
-                lambda msg, jid=job.job_id: self._on_error(jid, msg)
-            )
-            process.finished.connect(
-                lambda code, jid=job.job_id: self._on_finished(jid, code)
-            )
+            process.error_occurred.connect(lambda msg, jid=job.job_id: self._on_error(jid, msg))
+            process.finished.connect(lambda code, jid=job.job_id: self._on_finished(jid, code))
 
             self.job_started.emit(job.job_id)
             self._emit_any_active()
@@ -97,11 +93,7 @@ class SyncManager(QObject):
         return self._statuses.get(job_id, JobStatus.IDLE)
 
     def active_job_ids(self) -> list[str]:
-        return [
-            jid
-            for jid, status in self._statuses.items()
-            if status == JobStatus.SYNCING
-        ]
+        return [jid for jid, status in self._statuses.items() if status == JobStatus.SYNCING]
 
     def is_any_active(self) -> bool:
         return len(self.active_job_ids()) > 0

@@ -14,12 +14,17 @@ from PySide6.QtWidgets import (
 from nubix.core.sync_job import SyncMode
 
 _MODES = [
-    (SyncMode.FULL, "Full Sync (Download Everything)",
-     "All files are downloaded and available offline. Uses the most disk space."),
-    (SyncMode.SELECTIVE, "Selective Sync",
-     "Choose which folders to download. Saves disk space."),
-    (SyncMode.BIDIRECTIONAL, "Bidirectional Sync",
-     "Changes on your computer are uploaded, and changes in the cloud are downloaded."),
+    (
+        SyncMode.FULL,
+        "Full Sync (Download Everything)",
+        "All files are downloaded and available offline. Uses the most disk space.",
+    ),
+    (SyncMode.SELECTIVE, "Selective Sync", "Choose which folders to download. Saves disk space."),
+    (
+        SyncMode.BIDIRECTIONAL,
+        "Bidirectional Sync",
+        "Changes on your computer are uploaded, and changes in the cloud are downloaded.",
+    ),
 ]
 
 

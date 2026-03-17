@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,6 +11,7 @@ import pytest
 def tmp_config_dir(tmp_path, monkeypatch):
     """Redirect all config/log directories to a temp path."""
     import nubix.constants as const
+
     monkeypatch.setattr(const, "CONFIG_DIR", tmp_path / "config")
     monkeypatch.setattr(const, "REMOTES_DIR", tmp_path / "config" / "remotes")
     monkeypatch.setattr(const, "RCLONE_CONFIG_DIR", tmp_path / "config" / "rclone")

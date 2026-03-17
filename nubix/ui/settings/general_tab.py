@@ -90,6 +90,7 @@ class GeneralTab(QWidget):
 
     def _update_autostart(self, enable: bool):
         import shutil
+
         AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
         if enable:
             binary = shutil.which("nubix") or "nubix"

@@ -162,11 +162,13 @@ class MainWindow(QMainWindow):
 
     def open_wizard(self):
         from nubix.ui.wizard.setup_wizard import SetupWizard
+
         wizard = SetupWizard(self._registry, self._vault, self._engine, self)
         wizard.exec()
 
     def open_settings(self):
         from nubix.ui.settings.settings_dialog import SettingsDialog
+
         dlg = SettingsDialog(self._config, self._registry, self._scheduler, self._bandwidth, self)
         dlg.exec()
 

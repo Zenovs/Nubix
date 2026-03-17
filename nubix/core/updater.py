@@ -64,9 +64,9 @@ class ReleaseInfo:
 class UpdateCheckThread(QThread):
     """Background thread that polls the GitHub releases API."""
 
-    update_available = Signal(object)   # ReleaseInfo
+    update_available = Signal(object)  # ReleaseInfo
     no_update = Signal()
-    check_failed = Signal(str)          # error message
+    check_failed = Signal(str)  # error message
 
     def run(self):
         try:
@@ -91,9 +91,9 @@ class UpdateCheckThread(QThread):
 class DownloadThread(QThread):
     """Downloads a file from a URL with progress reporting."""
 
-    progress = Signal(int)      # 0–100
-    finished = Signal(str)      # path to downloaded file
-    failed = Signal(str)        # error message
+    progress = Signal(int)  # 0–100
+    finished = Signal(str)  # path to downloaded file
+    failed = Signal(str)  # error message
 
     def __init__(self, url: str, dest: Path, parent=None):
         super().__init__(parent)
@@ -126,13 +126,13 @@ class Updater(QObject):
     2. download_and_apply(info) → downloads, replaces binary, requests restart
     """
 
-    update_available = Signal(object)   # ReleaseInfo
+    update_available = Signal(object)  # ReleaseInfo
     no_update = Signal()
     check_failed = Signal(str)
-    download_progress = Signal(int)     # 0–100
+    download_progress = Signal(int)  # 0–100
     download_complete = Signal()
     update_failed = Signal(str)
-    restart_required = Signal()         # app should quit and re-exec
+    restart_required = Signal()  # app should quit and re-exec
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -164,8 +164,7 @@ class Updater(QObject):
         current_path = self._current_binary()
         if current_path is None:
             self.update_failed.emit(
-                "Cannot determine current binary path. "
-                "Please download the update manually."
+                "Cannot determine current binary path. " "Please download the update manually."
             )
             return
 
@@ -211,6 +210,7 @@ class Updater(QObject):
 
             # Atomic replace: rename new -> current
             import shutil
+
             shutil.move(str(downloaded), str(current))
             logger.info("Update applied: %s -> %s", downloaded, current)
 

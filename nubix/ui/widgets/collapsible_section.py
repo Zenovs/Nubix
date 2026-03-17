@@ -45,9 +45,7 @@ class CollapsibleSection(QWidget):
         self._content.adjustSize()
 
     def _on_toggle(self, checked: bool):
-        self._toggle.setArrowType(
-            Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow
-        )
+        self._toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow)
         target = self._content.sizeHint().height() if checked else 0
         self._animation.stop()
         self._animation.setStartValue(self._content.maximumHeight())

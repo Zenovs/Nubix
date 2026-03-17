@@ -77,8 +77,7 @@ class BandwidthTab(QWidget):
         layout.setSpacing(20)
 
         info = QLabel(
-            "Limit how much bandwidth Nubix uses for cloud sync. "
-            "Set to 0 for unlimited."
+            "Limit how much bandwidth Nubix uses for cloud sync. " "Set to 0 for unlimited."
         )
         info.setWordWrap(True)
         layout.addWidget(info)

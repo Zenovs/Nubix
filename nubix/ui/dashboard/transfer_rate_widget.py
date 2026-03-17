@@ -52,8 +52,10 @@ class _SparklineWidget(QWidget):
 
         for i in range(1, len(coords)):
             painter.drawLine(
-                int(coords[i - 1][0]), int(coords[i - 1][1]),
-                int(coords[i][0]), int(coords[i][1]),
+                int(coords[i - 1][0]),
+                int(coords[i - 1][1]),
+                int(coords[i][0]),
+                int(coords[i][1]),
             )
 
 
