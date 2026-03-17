@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.8] — 2026-03-17
+
+### Bugfixes
+
+- Fix "No provider selected" error: use Qt `Property` instead of Python `property` so `QWizard.field("provider_id")` reads the selection correctly
+
 ## [0.1.7] — 2026-03-17
 
 ### Bugfixes

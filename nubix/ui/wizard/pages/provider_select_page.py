@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Property, Qt, Signal
 from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
@@ -103,7 +103,8 @@ class ProviderSelectPage(QWizardPage):
     def _set_provider_id(self, val: str):
         pass
 
-    provider_id = property(_get_provider_id, _set_provider_id)
+    # Must be a Qt Property (not Python property) so QWizard.field() can read it
+    provider_id = Property(str, _get_provider_id, _set_provider_id, notify=_provider_id_changed)
 
     def isComplete(self) -> bool:
         return bool(self._get_provider_id())
