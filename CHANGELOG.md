@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.15] — 2026-03-17
+
+### Features
+
+- **Bandwidth schedule**: limit bandwidth during specific hours (e.g. 08:00–22:00) and use unlimited speed outside — configured in Settings → Bandwidth
+- rclone handles time-based switching automatically mid-job via its timetable `--bwlimit` format (`"08:00,5M:10M 22:00,off"`)
+- Bandwidth limits are now applied to every sync job (previously the global limits were not wired to job execution)
+
 ## [0.2.14] — 2026-03-17
 
 ### Bugfixes

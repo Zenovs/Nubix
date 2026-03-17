@@ -84,3 +84,84 @@ class BandwidthController(QObject):
         if ul == "0" and dl == "0":
             return "0"
         return f"{ul}:{dl}"
+
+    # ------------------------------------------------------------------
+    # Bandwidth schedule (time-based limits)
+    # ------------------------------------------------------------------
+
+    @property
+    def schedule_enabled(self) -> bool:
+        return self._config.get("bandwidth.schedule_enabled", False)
+
+    @property
+    def schedule_from(self) -> str:
+        return self._config.get("bandwidth.schedule_from", "08:00")
+
+    @property
+    def schedule_to(self) -> str:
+        return self._config.get("bandwidth.schedule_to", "22:00")
+
+    @property
+    def schedule_upload_limit(self) -> str:
+        return self._config.get("bandwidth.schedule_upload_limit", "0")
+
+    @property
+    def schedule_download_limit(self) -> str:
+        return self._config.get("bandwidth.schedule_download_limit", "0")
+
+    def set_schedule(
+        self,
+        enabled: bool,
+        from_time: str,
+        to_time: str,
+        upload: str,
+        download: str,
+    ) -> None:
+        self._config.set("bandwidth.schedule_enabled", enabled)
+        self._config.set("bandwidth.schedule_from", from_time)
+        self._config.set("bandwidth.schedule_to", to_time)
+        self._config.set("bandwidth.schedule_upload_limit", upload)
+        self._config.set("bandwidth.schedule_download_limit", download)
+        self.limits_changed.emit(self.upload_limit, self.download_limit)
+        logger.debug(
+            "Bandwidth schedule %s: %s–%s  up=%s  dl=%s",
+            "enabled" if enabled else "disabled",
+            from_time,
+            to_time,
+            upload,
+            download,
+        )
+
+    def get_effective_limit(self) -> str:
+        """Return the --bwlimit argument value for rclone.
+
+        When a schedule is enabled, returns a rclone timetable string so
+        rclone switches limits automatically as time passes during a job:
+
+            "08:00,5M:10M 22:00,off"
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+            from 08:00: 5 MB/s up / 10 MB/s down
+            from 22:00: unlimited
+
+        When no schedule is active, falls back to the static global limits.
+        """
+        if not self.schedule_enabled:
+            return self.get_combined_limit()
+
+        ul = self.schedule_upload_limit
+        dl = self.schedule_download_limit
+        from_t = self.schedule_from
+        to_t = self.schedule_to
+
+        if ul == "0" and dl == "0":
+            window_limit = "off"  # effectively unlimited during window too
+        elif dl == "0":
+            window_limit = ul
+        elif ul == "0":
+            window_limit = f"off:{dl}"
+        else:
+            window_limit = f"{ul}:{dl}"
+
+        # rclone timetable: "HH:MM,limit HH:MM,limit ..."
+        # Last entry (to_t) resets to unlimited (off) until next day.
+        return f"{from_t},{window_limit} {to_t},off"

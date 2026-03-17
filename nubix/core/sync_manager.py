@@ -27,9 +27,10 @@ class SyncManager(QObject):
     file_transferred = Signal(str, str)  # job_id, filename
     any_job_active = Signal(bool)  # True if any job is running
 
-    def __init__(self, engine: RcloneEngine, parent: QObject | None = None):
+    def __init__(self, engine: RcloneEngine, bandwidth=None, parent: QObject | None = None):
         super().__init__(parent)
         self._engine = engine
+        self._bandwidth = bandwidth
         self._processes: dict[str, RcloneProcess] = {}
         self._statuses: dict[str, JobStatus] = {}
 
@@ -42,6 +43,13 @@ class SyncManager(QObject):
         if self._is_active(job.job_id):
             logger.debug("Job %s already running", job.job_id)
             return
+
+        # Apply current effective bandwidth limit (may be a timetable string
+        # so rclone switches limits automatically as time passes).
+        if self._bandwidth is not None:
+            effective = self._bandwidth.get_effective_limit()
+            job.bandwidth_limit = effective
+
         try:
             process = self._engine.start_sync(job)
             self._processes[job.job_id] = process

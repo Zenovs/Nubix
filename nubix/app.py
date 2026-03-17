@@ -57,8 +57,10 @@ class NubixApp:
 
         self._registry = RemoteRegistry(self._config, self._vault)
 
+        self._bandwidth = BandwidthController(self._config)
+
         if self._engine:
-            self._sync_manager = SyncManager(self._engine)
+            self._sync_manager = SyncManager(self._engine, bandwidth=self._bandwidth)
         else:
             self._sync_manager = None
 
@@ -69,8 +71,6 @@ class NubixApp:
 
         # Keep scheduler in sync when remotes are updated via settings
         self._registry.remote_updated.connect(self._on_remote_updated)
-
-        self._bandwidth = BandwidthController(self._config)
         self._updater = Updater()
 
         qt_app.aboutToQuit.connect(self._shutdown)
