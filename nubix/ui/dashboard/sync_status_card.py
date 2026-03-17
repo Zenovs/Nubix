@@ -79,9 +79,7 @@ class SyncStatusCard(QFrame):
         name_col.addWidget(self._name_label)
 
         self._path_label = QLabel(self.remote.local_path)
-        self._path_label.setStyleSheet(
-            "color: #8888AA; font-size: 11px; background: transparent;"
-        )
+        self._path_label.setStyleSheet("color: #8888AA; font-size: 11px; background: transparent;")
         self._path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         name_col.addWidget(self._path_label)
         top.addLayout(name_col, 1)
@@ -147,9 +145,7 @@ class SyncStatusCard(QFrame):
         # ── Bottom row: current file + speed ──
         bottom = QHBoxLayout()
         self._file_label = QLabel("")
-        self._file_label.setStyleSheet(
-            "color: #8888AA; font-size: 11px; background: transparent;"
-        )
+        self._file_label.setStyleSheet("color: #8888AA; font-size: 11px; background: transparent;")
         self._file_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._speed_label = QLabel("")
         self._speed_label.setStyleSheet(
