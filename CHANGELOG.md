@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.14] — 2026-03-17
+
+### Bugfixes
+
+- Fix browser never opening: switch to `--auth-no-open-browser` so rclone only starts the local OAuth server; Nubix opens the browser itself with a clean `LD_LIBRARY_PATH` — this is reliable and avoids double-tab issues
+- Fix port 53682 stuck after wizard close: kill all lingering `rclone authorize` processes system-wide (via `pgrep`/SIGKILL) before starting a new OAuth flow — handles zombies from previous sessions and app restarts
+- Use SIGKILL instead of SIGTERM in `cancel()` for immediate process termination
+
 ## [0.2.13] — 2026-03-17
 
 ### Bugfixes

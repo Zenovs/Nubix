@@ -71,6 +71,29 @@ def _open_browser(url: str) -> None:
     QDesktopServices.openUrl(QUrl(url))
 
 
+def _kill_rclone_authorize() -> None:
+    """Kill any lingering 'rclone authorize' processes to free port 53682.
+
+    Handles zombie processes left over from previous wizard sessions or app
+    restarts where cleanupPage() was never called.
+    """
+    import signal
+
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "rclone authorize"],
+            capture_output=True,
+            text=True,
+        )
+        for pid_str in result.stdout.split():
+            try:
+                os.kill(int(pid_str), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    except Exception:
+        pass
+
+
 def _clean_env() -> dict:
     """Return os.environ with LD_LIBRARY_PATH restored to pre-AppImage value.
 
@@ -109,22 +132,23 @@ class _RcloneAuthThread(QThread):
         self._proc: subprocess.Popen | None = None
 
     def cancel(self) -> None:
-        """Terminate the rclone process so it releases port 53682."""
+        """Kill the rclone process immediately so it releases port 53682."""
         if self._proc is not None:
             try:
-                self._proc.terminate()
+                self._proc.kill()  # SIGKILL — immediate, no grace period
+                self._proc.wait()
             except Exception:
                 pass
             self._proc = None
 
     def run(self):
         try:
-            # Spawn rclone with a clean environment so xdg-open (called
-            # internally by rclone to open the browser) works correctly even
-            # inside an AppImage.  Do NOT pass --auth-no-open-browser: that
-            # flag was added in rclone v1.59; Ubuntu apt ships older versions.
+            # Use --auth-no-open-browser so rclone only starts the local server
+            # and outputs the URL; we open the browser ourselves with a clean
+            # LD_LIBRARY_PATH (so xdg-open works inside AppImage).
+            # This flag is available since rclone v1.59.
             proc = subprocess.Popen(
-                ["rclone", "authorize", self._type],
+                ["rclone", "authorize", self._type, "--auth-no-open-browser"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -448,6 +472,9 @@ class AuthPage(QWizardPage):
             self._auth_thread.quit()
             self._auth_thread.wait(2000)
             self._auth_thread = None
+        # Also kill any zombie rclone authorize processes from previous
+        # sessions (wizard closed without navigating back, app restart, etc.)
+        _kill_rclone_authorize()
 
         provider_id = self.wizard().field("provider_id")
         try:
@@ -471,8 +498,8 @@ class AuthPage(QWizardPage):
         self._auth_thread.start()
 
     def _on_auth_url(self, url: str):
-        # rclone already opened the browser (with our clean env).
-        # Just show the URL as a copyable fallback in case it did not open.
+        # We use --auth-no-open-browser, so we open the browser ourselves.
+        _open_browser(url)
         self._url_field.setText(url)
         self._url_field.show()
         self._url_header.show()
