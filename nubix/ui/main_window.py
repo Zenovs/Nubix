@@ -117,47 +117,45 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── ASCII art header ──
-        _ASCII = (
-            "███╗   ██╗██╗   ██╗██████╗ ██╗██╗  ██╗\n"
-            "████╗  ██║██║   ██║██╔══██╗██║╚██╗██╔╝\n"
-            "██╔██╗ ██║██║   ██║██████╔╝██║ ╚███╔╝ \n"
-            "██║╚██╗██║██║   ██║██╔══██╗██║ ██╔██╗ \n"
-            "██║ ╚████║╚██████╔╝██████╔╝██║██╔╝ ██╗\n"
-            "╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═╝"
-        )
+        # ── Sidebar header ──
         header = QWidget()
+        header.setFixedHeight(72)
         header.setStyleSheet(
             f"background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
             f" stop:0 {ACCENT}, stop:1 #A78BFA);"
         )
         hl = QVBoxLayout(header)
-        hl.setContentsMargins(10, 10, 10, 8)
+        hl.setContentsMargins(16, 10, 16, 10)
         hl.setSpacing(2)
 
-        ascii_lbl = QLabel(_ASCII)
-        ascii_lbl.setStyleSheet(
-            "color: white; background: transparent;"
-            " font-family: 'Courier New', 'Consolas', monospace;"
-            " font-size: 5.4px; font-weight: bold; letter-spacing: 0px;"
-        )
-        ascii_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        hl.addWidget(ascii_lbl)
+        title_row = QHBoxLayout()
+        icon_lbl = QLabel("☁")
+        icon_lbl.setStyleSheet("color: white; font-size: 24px; background: transparent;")
+        title_row.addWidget(icon_lbl)
 
+        name_lbl = QLabel("NUBIX")
+        name_lbl.setStyleSheet(
+            "color: white; font-size: 22px; font-weight: 800;"
+            " letter-spacing: 4px; background: transparent;"
+        )
+        title_row.addWidget(name_lbl)
+        title_row.addStretch()
+        hl.addLayout(title_row)
+
+        sub_row = QHBoxLayout()
         sub_lbl = QLabel("Cloud Sync Manager")
         sub_lbl.setStyleSheet(
-            "color: rgba(255,255,255,0.75); background: transparent;"
+            "color: rgba(255,255,255,0.65); background: transparent;"
             " font-size: 10px; letter-spacing: 1px;"
         )
-        sub_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-        hl.addWidget(sub_lbl)
-
-        ver_lbl = QLabel("v0.1.6")
+        sub_row.addStretch()
+        sub_row.addWidget(sub_lbl)
+        ver_lbl = QLabel("v0.1.7")
         ver_lbl.setStyleSheet(
-            "color: rgba(255,255,255,0.5); background: transparent;" " font-size: 9px;"
+            "color: rgba(255,255,255,0.4); background: transparent; font-size: 9px;"
         )
-        ver_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
-        hl.addWidget(ver_lbl)
+        sub_row.addWidget(ver_lbl)
+        hl.addLayout(sub_row)
 
         layout.addWidget(header)
         layout.addSpacing(6)

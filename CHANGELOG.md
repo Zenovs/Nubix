@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7] — 2026-03-17
+
+### Bugfixes
+
+- Fix ASCII art misalignment in dashboard empty state: switched to HTML `<pre>` tag for correct monospace rendering
+- Replace sidebar ASCII art header with clean styled text (avoids mixed block/box-drawing char width issues)
+
 ## [0.1.5] — 2026-03-17
 
 ### Features

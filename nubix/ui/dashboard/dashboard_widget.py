@@ -82,22 +82,29 @@ class DashboardWidget(QWidget):
         self._cards_layout = QVBoxLayout(cards_container)
         self._cards_layout.setContentsMargins(0, 0, 8, 0)
         self._cards_layout.setSpacing(12)
-        _ASCII = (
+        # ASCII art — use HTML so we can set different styles per section
+        _ASCII_HTML = (
+            "<pre style='"
+            "font-family: monospace; font-size: 14px; font-weight: bold;"
+            " color: #4A4A70; line-height: 1.25; letter-spacing: 0;"
+            " margin: 0; padding: 0;'"
+            ">"
             "███╗   ██╗██╗   ██╗██████╗ ██╗██╗  ██╗\n"
             "████╗  ██║██║   ██║██╔══██╗██║╚██╗██╔╝\n"
             "██╔██╗ ██║██║   ██║██████╔╝██║ ╚███╔╝ \n"
             "██║╚██╗██║██║   ██║██╔══██╗██║ ██╔██╗ \n"
             "██║ ╚████║╚██████╔╝██████╔╝██║██╔╝ ██╗\n"
-            "╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═╝\n\n"
-            "Cloud Sync Manager\n\n"
-            "No connections yet — click  ＋ Add Connection  to get started."
+            "╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═╝"
+            "</pre>"
+            "<p style='color:#5A5A80; font-size:13px; margin-top:12px;'>"
+            "Cloud Sync Manager</p>"
+            "<p style='color:#6B6B8A; font-size:12px; margin-top:4px;'>"
+            "No connections yet — click  <b>＋ Add Connection</b>  to get started.</p>"
         )
-        self._empty_label = QLabel(_ASCII)
+        self._empty_label = QLabel(_ASCII_HTML)
+        self._empty_label.setTextFormat(Qt.TextFormat.RichText)
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_label.setStyleSheet(
-            "color: #3A3A5A; font-family: 'Courier New', 'Consolas', monospace;"
-            " font-size: 13px; background: transparent; line-height: 1.5;"
-        )
+        self._empty_label.setStyleSheet("background: transparent;")
         self._cards_layout.addWidget(self._empty_label)
         self._cards_layout.addStretch()
 
