@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] — 2026-03-17
+
+### Bugfixes
+
+- Fix two browser tabs opening on OAuth: rclone already opens the browser itself; removed redundant `QDesktopServices.openUrl()` call from `_on_auth_url`
+
 ## [0.2.1] — 2026-03-17
 
 ### Bugfixes

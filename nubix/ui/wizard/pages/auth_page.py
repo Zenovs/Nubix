@@ -355,11 +355,8 @@ class AuthPage(QWizardPage):
         self._auth_thread.start()
 
     def _on_auth_url(self, url: str):
-        # rclone already tries to open the browser itself.
-        # Also try via Qt as a second attempt.
-        QDesktopServices.openUrl(QUrl(url))
-
-        # Show the URL as a copyable fallback regardless
+        # rclone already opened the browser — do NOT call QDesktopServices here
+        # or a second tab would open. Only show the URL as a copyable fallback.
         self._url_field.setText(url)
         self._url_field.show()
         self._url_header.show()
