@@ -31,3 +31,6 @@ nubix-deb/
 
 # Nubix user data (never commit)
 ~/.config/nubix/
+
+# Claude Code local settings (never commit)
+.claude/
