@@ -29,7 +29,7 @@ def test_config_persisted_across_instances(tmp_config_dir):
     assert c2.get("general.log_retention_days") == 99
 
 
-def test_config_changed_signal_emitted(qapp, tmp_config_dir):
+def test_config_changed_signal_emitted(tmp_config_dir):
     config = ConfigManager()
     received = []
     config.config_changed.connect(lambda k, v: received.append((k, v)))

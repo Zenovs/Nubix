@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock
 
 import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def qcore_app():
+    """Ensure a QCoreApplication exists for the entire test session."""
+    from PySide6.QtCore import QCoreApplication
+
+    app = QCoreApplication.instance()
+    if app is None:
+        app = QCoreApplication(sys.argv)
+    yield app
 
 
 @pytest.fixture

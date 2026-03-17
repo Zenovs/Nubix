@@ -39,6 +39,9 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run tests (headless)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          DISPLAY: ":99"
         run: |
           xvfb-run --auto-servernum \
             -s "-screen 0 1280x720x24" \
