@@ -39,10 +39,11 @@ class _RcloneAuthThread(QThread):
 
     def run(self):
         try:
-            # Let rclone open the browser itself (no --auth-no-open-browser).
-            # We still parse stdout/stderr to surface the URL as a fallback.
+            # --auth-no-open-browser: rclone prints the URL but does NOT open a
+            # browser itself. The UI opens the browser via QDesktopServices so it
+            # works reliably inside the AppImage (no xdg-open access for rclone).
             proc = subprocess.Popen(
-                ["rclone", "authorize", self._type],
+                ["rclone", "authorize", self._type, "--auth-no-open-browser"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -355,16 +356,17 @@ class AuthPage(QWizardPage):
         self._auth_thread.start()
 
     def _on_auth_url(self, url: str):
-        # rclone already opened the browser — do NOT call QDesktopServices here
-        # or a second tab would open. Only show the URL as a copyable fallback.
+        # rclone used --auth-no-open-browser, so we open it via Qt (works in AppImage)
+        QDesktopServices.openUrl(QUrl(url))
+
         self._url_field.setText(url)
         self._url_field.show()
         self._url_header.show()
         self._btn_copy.show()
         self._btn_open.show()
         self._set_status(
-            "🌐  Browser should open automatically.\n"
-            "If not, copy the URL below and paste it into your browser.",
+            "🌐  Browser opened for authorization.\n"
+            "If it did not open, copy the URL below and paste it into your browser.",
             "#60A5FA",
         )
 

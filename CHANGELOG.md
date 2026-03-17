@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.6] — 2026-03-17
+
+### Bugfixes
+
+- Fix browser not opening on OAuth: use `--auth-no-open-browser` so rclone never tries to open a browser (fails inside AppImage), then open via `QDesktopServices` which works reliably
+
 ## [0.2.5] — 2026-03-17
 
 ### Changes
