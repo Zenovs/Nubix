@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.10] — 2026-03-17
+
+### Bugfixes
+
+- Fix browser not opening on OAuth: rclone's first output line contains the Redirect URL in quotes (`"http://127.0.0.1:53682/"`), which our regex captured instead of the real auth URL on the next line (`http://127.0.0.1:53682/auth?...`); now specifically looks for the `link: <url>` pattern rclone uses, with a fallback that skips quote-wrapped URLs
+- Fix `_open_browser` silently swallowing xdg-open failures: previously `Popen` returned immediately and we assumed success — now polls exit code after 150ms; if xdg-open fails, falls through to direct browser executables (firefox, chromium, etc.)
+
 ## [0.2.9] — 2026-03-17
 
 ### Bugfixes

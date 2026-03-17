@@ -31,6 +31,9 @@ def _open_browser(url: str) -> None:
     fail.  We restore the original LD_LIBRARY_PATH (saved by the AppImage
     runtime as APPIMAGE_ORIGINAL_LD_LIBRARY_PATH) before spawning the process.
     """
+    import logging
+    _log = logging.getLogger(__name__)
+
     env = os.environ.copy()
     orig = env.get("APPIMAGE_ORIGINAL_LD_LIBRARY_PATH")
     if orig is not None:
@@ -39,25 +42,36 @@ def _open_browser(url: str) -> None:
         # Running as AppImage but original not saved — clear it so system libs are used
         env.pop("LD_LIBRARY_PATH", None)
 
-    # Try xdg-open (most reliable on Linux desktops)
+    # Try xdg-open; wait briefly to detect immediate failure
     xdg = shutil.which("xdg-open")
     if xdg:
         try:
-            subprocess.Popen([xdg, url], env=env, start_new_session=True)
-            return
-        except Exception:
-            pass
+            proc = subprocess.Popen(
+                [xdg, url], env=env, start_new_session=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            import time
+            time.sleep(0.15)  # give xdg-open a moment to exit with an error
+            ret = proc.poll()
+            if ret is None or ret == 0:
+                return  # still running (spawned browser) or clean exit
+            _log.warning("xdg-open exited with code %d, trying fallbacks", ret)
+        except Exception as exc:
+            _log.warning("xdg-open failed: %s", exc)
 
-    # Fallback: Python webbrowser module
-    try:
-        import webbrowser
+    # Try common browsers directly (skips xdg-open entirely)
+    for browser in ("firefox", "chromium-browser", "chromium", "google-chrome", "brave-browser"):
+        path = shutil.which(browser)
+        if path:
+            try:
+                subprocess.Popen([path, url], env=env, start_new_session=True)
+                _log.debug("Opened browser via %s", browser)
+                return
+            except Exception:
+                continue
 
-        webbrowser.open(url)
-        return
-    except Exception:
-        pass
-
-    # Last resort: Qt
+    # Last resort: Qt (may not work inside AppImage but better than nothing)
+    _log.debug("Falling back to QDesktopServices.openUrl")
     QDesktopServices.openUrl(QUrl(url))
 
 
@@ -104,11 +118,20 @@ class _RcloneAuthThread(QThread):
         for raw in proc.stdout:
             line = raw.rstrip()
 
-            # Extract any http(s) URL from the line
+            # Extract the authorization URL from rclone output.
+            # rclone prints two URL-containing lines:
+            #   1) NOTICE: Make sure your Redirect URL is set to "http://127.0.0.1:53682/"
+            #   2) NOTICE: go to the following link: http://127.0.0.1:53682/auth?...
+            # We want line 2. Prefer the "link: URL" pattern; fall back to any
+            # URL that is NOT surrounded by quotes (which is the redirect notice).
             if not url_emitted and "http" in line:
-                m = re.search(r"https?://\S+", line)
+                # Primary: explicit "link: <url>" marker used by rclone
+                m = re.search(r"link:\s*(https?://[^\s\"']+)", line, re.IGNORECASE)
+                if not m:
+                    # Fallback: URL NOT immediately preceded by a quote character
+                    m = re.search(r'(?<!["\'`])(https?://[^\s"\'`]+)', line)
                 if m:
-                    url = m.group(0).rstrip(".,)")
+                    url = m.group(1).rstrip(".,)")
                     self.auth_url.emit(url)
                     url_emitted = True
 
