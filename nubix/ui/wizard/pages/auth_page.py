@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import subprocess
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
+    QApplication,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -21,14 +23,14 @@ from nubix.providers.base_provider import AuthType
 
 
 class _RcloneAuthThread(QThread):
-    """Runs `rclone authorize --auth-no-open-browser <type>` in a background thread.
+    """Runs `rclone authorize <type>` and emits the auth URL and token.
 
-    Emits `auth_url` once the browser URL is ready, then `auth_done` once the
-    token JSON arrives (after the user completes authorization in the browser).
+    rclone opens the browser itself. We also parse and emit the URL so the UI
+    can show it as a copyable fallback link.
     """
 
-    auth_url = Signal(str)
-    auth_done = Signal(str)
+    auth_url = Signal(str)  # emitted as soon as URL is detected in output
+    auth_done = Signal(str)  # emitted with token JSON once auth completes
     auth_error = Signal(str)
 
     def __init__(self, provider_type: str, parent=None):
@@ -37,56 +39,56 @@ class _RcloneAuthThread(QThread):
 
     def run(self):
         try:
+            # Let rclone open the browser itself (no --auth-no-open-browser).
+            # We still parse stdout/stderr to surface the URL as a fallback.
             proc = subprocess.Popen(
-                ["rclone", "authorize", self._type, "--auth-no-open-browser"],
+                ["rclone", "authorize", self._type],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
             )
-            url_emitted = False
-            token_lines: list[str] = []
-            capture = False
-
-            for line in proc.stdout:
-                line = line.rstrip()
-
-                # rclone prints the auth URL — extract it regardless of surrounding text
-                if not url_emitted and "http" in line:
-                    import re
-
-                    match = re.search(r"https?://\S+", line)
-                    if match:
-                        url = match.group(0).rstrip(".")
-                        # skip localhost-only lines (rclone's redirect server)
-                        if "accounts." in url or "auth" in url or "oauth" in url or "login" in url:
-                            self.auth_url.emit(url)
-                            url_emitted = True
-                        elif not url_emitted and "127.0.0.1" not in url and "localhost" not in url:
-                            self.auth_url.emit(url)
-                            url_emitted = True
-
-                # Token appears between ---> and <--- markers
-                if "--->" in line:
-                    capture = True
-                    continue
-                if capture and "<---" in line:
-                    capture = False
-                    continue
-                if capture and line.strip().startswith("{"):
-                    token_lines.append(line.strip())
-
-            proc.wait()
-            if token_lines:
-                self.auth_done.emit(token_lines[0])
-            elif proc.returncode == 0:
-                self.auth_done.emit("")
-            else:
-                self.auth_error.emit("Authorization failed or was cancelled.")
         except FileNotFoundError:
             self.auth_error.emit("rclone not found. Install it with:  sudo apt install rclone")
+            return
         except Exception as e:
             self.auth_error.emit(str(e))
+            return
+
+        import re
+
+        url_emitted = False
+        token_lines: list[str] = []
+        capture = False
+
+        for raw in proc.stdout:
+            line = raw.rstrip()
+
+            # Extract any http(s) URL from the line
+            if not url_emitted and "http" in line:
+                m = re.search(r"https?://\S+", line)
+                if m:
+                    url = m.group(0).rstrip(".,)")
+                    self.auth_url.emit(url)
+                    url_emitted = True
+
+            # Token arrives between ---> and <--- markers
+            if "--->" in line:
+                capture = True
+                continue
+            if capture and "<---" in line:
+                capture = False
+                continue
+            if capture and line.strip().startswith("{"):
+                token_lines.append(line.strip())
+
+        proc.wait()
+        if token_lines:
+            self.auth_done.emit(token_lines[0])
+        elif proc.returncode == 0:
+            self.auth_done.emit("")
+        else:
+            self.auth_error.emit("Authorization failed or was cancelled.")
 
 
 class AuthPage(QWizardPage):
@@ -122,7 +124,7 @@ class AuthPage(QWizardPage):
 
         self._layout.addStretch()
 
-    # ── Widget builders ────────────────────────────────────────────────────────
+    # ── OAuth widget ───────────────────────────────────────────────────────────
 
     def _make_oauth_widget(self) -> QWidget:
         w = QWidget()
@@ -131,27 +133,70 @@ class AuthPage(QWizardPage):
         vl.setSpacing(10)
 
         self._oauth_info = QLabel(
-            "Click the button below. Your browser will open for authorization."
+            "Click the button below — your browser will open for authorization.\n"
+            "If the browser does not open automatically, copy the link below."
         )
         self._oauth_info.setWordWrap(True)
+        self._oauth_info.setStyleSheet("color: #8888AA; font-size: 12px;")
         vl.addWidget(self._oauth_info)
 
-        self._url_label = QLabel("")
-        self._url_label.setWordWrap(True)
-        self._url_label.setOpenExternalLinks(True)
-        self._url_label.setStyleSheet("color: #7C5CFC; font-size: 12px;")
-        self._url_label.hide()
-        vl.addWidget(self._url_label)
-
-        self._btn_auth = QPushButton("🌐   Open Browser & Authorize")
-        self._btn_auth.setFixedWidth(240)
+        # Start button
+        self._btn_auth = QPushButton("🌐   Open Browser and Authorize")
+        self._btn_auth.setFixedHeight(38)
         self._btn_auth.clicked.connect(self._start_oauth)
         vl.addWidget(self._btn_auth)
 
+        # Status line
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("font-size: 12px;")
+        self._status_label.setStyleSheet("font-size: 12px; font-weight: 600;")
+        self._status_label.setWordWrap(True)
         vl.addWidget(self._status_label)
+
+        # ── Copyable URL box (hidden until URL arrives) ──
+        url_header = QLabel("Authorization URL  (copy and open manually if needed):")
+        url_header.setStyleSheet("color: #8888AA; font-size: 11px; font-weight: 600;")
+        url_header.hide()
+        vl.addWidget(url_header)
+        self._url_header = url_header
+
+        url_row = QHBoxLayout()
+        self._url_field = QLineEdit()
+        self._url_field.setReadOnly(True)
+        self._url_field.setStyleSheet(
+            "QLineEdit { background: #1E1E32; border: 1px solid #7C5CFC;"
+            " border-radius: 6px; padding: 6px 10px; color: #A78BFA;"
+            " font-size: 11px; }"
+        )
+        self._url_field.hide()
+        url_row.addWidget(self._url_field, 1)
+
+        self._btn_copy = QPushButton("Copy")
+        self._btn_copy.setFixedWidth(64)
+        self._btn_copy.setStyleSheet(
+            "QPushButton { background: #2E2E50; color: #E2E2F0; border: 1px solid #7C5CFC;"
+            " border-radius: 6px; padding: 6px; font-size: 12px; }"
+            "QPushButton:hover { background: #7C5CFC; color: white; }"
+        )
+        self._btn_copy.hide()
+        self._btn_copy.clicked.connect(self._copy_url)
+        url_row.addWidget(self._btn_copy)
+
+        self._btn_open = QPushButton("Open")
+        self._btn_open.setFixedWidth(64)
+        self._btn_open.setStyleSheet(
+            "QPushButton { background: #2E2E50; color: #E2E2F0; border: 1px solid #7C5CFC;"
+            " border-radius: 6px; padding: 6px; font-size: 12px; }"
+            "QPushButton:hover { background: #7C5CFC; color: white; }"
+        )
+        self._btn_open.hide()
+        self._btn_open.clicked.connect(self._open_url_manually)
+        url_row.addWidget(self._btn_open)
+
+        vl.addLayout(url_row)
+
         return w
+
+    # ── Other auth forms ───────────────────────────────────────────────────────
 
     def _make_webdav_widget(self) -> QWidget:
         w = QWidget()
@@ -171,8 +216,8 @@ class AuthPage(QWizardPage):
         self._webdav_pass_edit.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow("Password:", self._webdav_pass_edit)
 
-        for w_ in (self._url_edit, self._webdav_user_edit, self._webdav_pass_edit):
-            w_.textChanged.connect(self.completeChanged)
+        for field in (self._url_edit, self._webdav_user_edit, self._webdav_pass_edit):
+            field.textChanged.connect(self.completeChanged)
         return w
 
     def _make_s3_widget(self) -> QWidget:
@@ -195,11 +240,11 @@ class AuthPage(QWizardPage):
         form.addRow("Region:", self._s3_region)
 
         self._s3_endpoint = QLineEdit()
-        self._s3_endpoint.setPlaceholderText("s3.amazonaws.com  (optional, for S3-compatible)")
+        self._s3_endpoint.setPlaceholderText("s3.amazonaws.com  (optional)")
         form.addRow("Endpoint:", self._s3_endpoint)
 
-        for w_ in (self._s3_key, self._s3_secret):
-            w_.textChanged.connect(self.completeChanged)
+        for field in (self._s3_key, self._s3_secret):
+            field.textChanged.connect(self.completeChanged)
         return w
 
     def _make_sftp_widget(self) -> QWidget:
@@ -220,8 +265,8 @@ class AuthPage(QWizardPage):
         self._sftp_pass.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow("Password:", self._sftp_pass)
 
-        for w_ in (self._sftp_host, self._sftp_user):
-            w_.textChanged.connect(self.completeChanged)
+        for field in (self._sftp_host, self._sftp_user):
+            field.textChanged.connect(self.completeChanged)
         return w
 
     def _make_simple_widget(self) -> QWidget:
@@ -238,8 +283,8 @@ class AuthPage(QWizardPage):
         self._simple_pass.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow("Password:", self._simple_pass)
 
-        for w_ in (self._simple_user, self._simple_pass):
-            w_.textChanged.connect(self.completeChanged)
+        for field in (self._simple_user, self._simple_pass):
+            field.textChanged.connect(self.completeChanged)
         return w
 
     # ── Page lifecycle ─────────────────────────────────────────────────────────
@@ -255,16 +300,22 @@ class AuthPage(QWizardPage):
 
         self.setSubTitle(f"Sign in to {provider.display_name}")
         self._token = ""
+        self._status_label.setText("")
+        self._url_field.clear()
+        self._url_field.hide()
+        self._url_header.hide()
+        self._btn_copy.hide()
+        self._btn_open.hide()
+        self._btn_auth.setEnabled(True)
 
-        # Hide all, show relevant
-        for w in (
+        for widget in (
             self._oauth_widget,
             self._webdav_widget,
             self._s3_widget,
             self._sftp_widget,
             self._simple_widget,
         ):
-            w.hide()
+            widget.hide()
 
         if provider.auth_type == AuthType.WEBDAV_BASIC:
             self._webdav_widget.show()
@@ -274,14 +325,7 @@ class AuthPage(QWizardPage):
             self._sftp_widget.show()
         elif provider.auth_type == AuthType.SIMPLE:
             self._simple_widget.show()
-        else:  # OAUTH2
-            self._oauth_info.setText(
-                f"Click the button below. Your browser will open to authorize "
-                f"Nubix to access your {provider.display_name}."
-            )
-            self._status_label.setText("")
-            self._url_label.hide()
-            self._btn_auth.setEnabled(True)
+        else:
             self._oauth_widget.show()
 
     # ── OAuth flow ─────────────────────────────────────────────────────────────
@@ -293,12 +337,16 @@ class AuthPage(QWizardPage):
         try:
             provider = get_provider(provider_id)
         except Exception:
+            self._set_status("✗  No provider selected — go back and choose one.", "#F87171")
             return
 
         self._btn_auth.setEnabled(False)
-        self._status_label.setText("Starting authorization…")
-        self._status_label.setStyleSheet("color: #8888AA; font-size: 12px;")
-        self._url_label.hide()
+        self._url_field.clear()
+        self._url_field.hide()
+        self._url_header.hide()
+        self._btn_copy.hide()
+        self._btn_open.hide()
+        self._set_status("⏳  Starting authorization…", "#8888AA")
 
         self._auth_thread = _RcloneAuthThread(provider.get_rclone_type(), self)
         self._auth_thread.auth_url.connect(self._on_auth_url)
@@ -307,29 +355,53 @@ class AuthPage(QWizardPage):
         self._auth_thread.start()
 
     def _on_auth_url(self, url: str):
-        # Open the browser with Qt (works in AppImage + Wayland/X11)
+        # rclone already tries to open the browser itself.
+        # Also try via Qt as a second attempt.
         QDesktopServices.openUrl(QUrl(url))
-        self._status_label.setText("Browser opened — waiting for authorization…")
-        self._status_label.setStyleSheet("color: #60A5FA; font-size: 12px;")
-        # Show the URL as fallback link in case browser didn't open
-        self._url_label.setText(
-            f'If the browser did not open, <a href="{url}" style="color:#7C5CFC;">click here</a>'
-            f" or copy this URL manually."
+
+        # Show the URL as a copyable fallback regardless
+        self._url_field.setText(url)
+        self._url_field.show()
+        self._url_header.show()
+        self._btn_copy.show()
+        self._btn_open.show()
+        self._set_status(
+            "🌐  Browser should open automatically.\n"
+            "If not, copy the URL below and paste it into your browser.",
+            "#60A5FA",
         )
-        self._url_label.show()
 
     def _on_auth_done(self, token: str):
         self._token = token
-        self._status_label.setText("✓  Authorization successful!")
-        self._status_label.setStyleSheet("color: #4ADE80; font-weight: 600; font-size: 12px;")
-        self._url_label.hide()
+        self._set_status("✓  Authorization successful!", "#4ADE80")
+        self._url_field.hide()
+        self._url_header.hide()
+        self._btn_copy.hide()
+        self._btn_open.hide()
         self._btn_auth.setEnabled(True)
         self.completeChanged.emit()
 
     def _on_auth_error(self, error: str):
-        self._status_label.setText(f"✗  {error}")
-        self._status_label.setStyleSheet("color: #F87171; font-size: 12px;")
+        self._set_status(f"✗  {error}", "#F87171")
         self._btn_auth.setEnabled(True)
+
+    def _copy_url(self):
+        url = self._url_field.text()
+        if url:
+            QApplication.clipboard().setText(url)
+            self._btn_copy.setText("✓")
+            from PySide6.QtCore import QTimer
+
+            QTimer.singleShot(2000, lambda: self._btn_copy.setText("Copy"))
+
+    def _open_url_manually(self):
+        url = self._url_field.text()
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
+    def _set_status(self, text: str, color: str):
+        self._status_label.setText(text)
+        self._status_label.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {color};")
 
     # ── Completion check ───────────────────────────────────────────────────────
 

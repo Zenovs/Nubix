@@ -152,7 +152,7 @@ class MainWindow(QMainWindow):
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         hl.addWidget(sub_lbl)
 
-        ver_lbl = QLabel("v0.1.5")
+        ver_lbl = QLabel("v0.1.6")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.5); background: transparent;" " font-size: 9px;"
         )
