@@ -1,0 +1,174 @@
+"""Main dashboard widget showing all cloud connections."""
+
+from __future__ import annotations
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
+
+from nubix.core.remote_registry import RemoteConfig, RemoteRegistry
+from nubix.core.sync_job import JobStatus, TransferStats
+from nubix.core.sync_manager import SyncManager
+from nubix.ui.dashboard.progress_panel import ProgressPanel
+from nubix.ui.dashboard.sync_status_card import SyncStatusCard
+from nubix.ui.dashboard.transfer_rate_widget import TransferRateWidget
+
+
+class DashboardWidget(QWidget):
+    """Top-level dashboard containing all remote cards."""
+
+    def __init__(self, registry: RemoteRegistry, sync_manager: SyncManager, parent=None):
+        super().__init__(parent)
+        self._registry = registry
+        self._sync = sync_manager
+        self._cards: dict[str, SyncStatusCard] = {}
+        self._jobs: dict[str, object] = {}  # remote_id -> SyncJob
+
+        self._build_ui()
+        self._connect_signals()
+        self._load_existing_remotes()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 16, 20, 16)
+        root.setSpacing(12)
+
+        # Header
+        header = QHBoxLayout()
+        title = QLabel("<h2>Cloud Connections</h2>")
+        header.addWidget(title)
+        header.addStretch()
+
+        self._btn_sync_all = QPushButton("↻  Sync All")
+        self._btn_sync_all.setFixedWidth(110)
+        self._btn_sync_all.clicked.connect(self._sync_all)
+        header.addWidget(self._btn_sync_all)
+
+        self._btn_pause_all = QPushButton("⏸  Pause All")
+        self._btn_pause_all.setFixedWidth(110)
+        self._btn_pause_all.clicked.connect(self._pause_all)
+        header.addWidget(self._btn_pause_all)
+
+        root.addLayout(header)
+
+        # Main splitter: cards (left) | progress panel (right)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(1)
+
+        # Cards area
+        cards_container = QWidget()
+        self._cards_layout = QVBoxLayout(cards_container)
+        self._cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._cards_layout.setSpacing(10)
+        self._empty_label = QLabel(
+            "No cloud connections yet.\nClick 'Add Connection' to get started."
+        )
+        self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setStyleSheet("color: #999; font-size: 14px;")
+        self._cards_layout.addWidget(self._empty_label)
+        self._cards_layout.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(scroll.Shape.NoFrame)
+        scroll.setWidget(cards_container)
+        splitter.addWidget(scroll)
+
+        # Right panel: speed + progress
+        right_panel = QWidget()
+        right_panel.setFixedWidth(200)
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(8, 0, 0, 0)
+        self._rate_widget = TransferRateWidget()
+        right_layout.addWidget(self._rate_widget)
+        self._progress_panel = ProgressPanel()
+        right_layout.addWidget(self._progress_panel, 1)
+        splitter.addWidget(right_panel)
+
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        root.addWidget(splitter, 1)
+
+    def _connect_signals(self):
+        self._registry.remote_added.connect(self._on_remote_added)
+        self._registry.remote_removed.connect(self._on_remote_removed)
+        self._sync.job_status_changed.connect(self._on_status_changed)
+        self._sync.progress_updated.connect(self._on_progress)
+        self._sync.file_transferred.connect(self._on_file_transferred)
+        self._sync.any_job_active.connect(self._btn_pause_all.setEnabled)
+
+    def _load_existing_remotes(self):
+        for rc in self._registry.list_remotes():
+            self._add_card(rc)
+
+    def _add_card(self, rc: RemoteConfig):
+        if rc.remote_id in self._cards:
+            return
+        card = SyncStatusCard(rc, self)
+        card.sync_requested.connect(self._start_remote)
+        card.stop_requested.connect(self._sync.stop_job)
+        card.settings_requested.connect(self._open_remote_settings)
+        self._cards[rc.remote_id] = card
+
+        # Remove empty label on first card
+        if self._empty_label.isVisible():
+            self._empty_label.hide()
+
+        # Insert before the stretch
+        count = self._cards_layout.count()
+        self._cards_layout.insertWidget(count - 1, card)
+
+    def _on_remote_added(self, rc: RemoteConfig):
+        self._add_card(rc)
+
+    def _on_remote_removed(self, remote_id: str):
+        card = self._cards.pop(remote_id, None)
+        if card:
+            self._cards_layout.removeWidget(card)
+            card.deleteLater()
+        if not self._cards:
+            self._empty_label.show()
+
+    def _on_status_changed(self, job_id: str, status_value: str):
+        # Find card by job_id (job_id == remote_id for remote-triggered jobs)
+        card = self._cards.get(job_id)
+        if card:
+            card.update_status(JobStatus(status_value))
+
+    def _on_progress(self, job_id: str, stats: TransferStats):
+        card = self._cards.get(job_id)
+        if card:
+            card.update_progress(stats)
+        self._rate_widget.update_speed(stats.speed_bps)
+        if stats.bytes_total > 0:
+            pct = stats.bytes_done / stats.bytes_total * 100
+            self._progress_panel.update_aggregate_progress(pct)
+
+    def _on_file_transferred(self, job_id: str, filename: str):
+        self._progress_panel.add_file(job_id, filename)
+
+    def _start_remote(self, remote_id: str):
+        rc = self._registry.get_remote(remote_id)
+        job = rc.to_sync_job()
+        self._sync.start_job(job)
+
+    def _sync_all(self):
+        for rc in self._registry.list_remotes():
+            if rc.is_enabled:
+                self._start_remote(rc.remote_id)
+
+    def _pause_all(self):
+        for job_id in self._sync.active_job_ids():
+            self._sync.pause_job(job_id)
+
+    def _open_remote_settings(self, remote_id: str):
+        # Emitted to the main window which opens the settings dialog
+        pass

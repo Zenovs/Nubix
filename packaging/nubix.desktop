@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Nubix
+GenericName=Cloud Sync Manager
+Comment=Sync files with Google Drive, Dropbox, and Nextcloud
+Exec=nubix
+Icon=nubix
+Terminal=false
+StartupNotify=true
+Categories=Network;FileTransfer;GTK;
+Keywords=cloud;sync;dropbox;google;drive;nextcloud;rclone;

@@ -1,0 +1,142 @@
+/* Nubix main stylesheet */
+
+QMainWindow, QDialog {
+    background: #FAFAFA;
+}
+
+QWidget {
+    font-family: "Segoe UI", "Ubuntu", "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    color: #212121;
+}
+
+/* Sync status cards */
+#SyncStatusCard {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    margin: 2px;
+}
+
+#SyncStatusCard:hover {
+    border-color: #BDBDBD;
+}
+
+/* Push buttons */
+QPushButton {
+    background: #F5F5F5;
+    border: 1px solid #BDBDBD;
+    border-radius: 6px;
+    padding: 6px 14px;
+    min-height: 28px;
+}
+
+QPushButton:hover {
+    background: #E8E8E8;
+    border-color: #9E9E9E;
+}
+
+QPushButton:pressed {
+    background: #DCDCDC;
+}
+
+QPushButton:disabled {
+    background: #F5F5F5;
+    color: #BDBDBD;
+    border-color: #E0E0E0;
+}
+
+/* Primary action buttons */
+QPushButton[class="primary"] {
+    background: #4A90D9;
+    color: white;
+    border: none;
+}
+
+QPushButton[class="primary"]:hover {
+    background: #357ABD;
+}
+
+/* Scroll areas */
+QScrollArea {
+    border: none;
+    background: transparent;
+}
+
+QScrollBar:vertical {
+    width: 8px;
+    background: transparent;
+}
+
+QScrollBar::handle:vertical {
+    background: #BDBDBD;
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #9E9E9E;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+/* Progress bars */
+QProgressBar {
+    border: none;
+    border-radius: 4px;
+    background: #E0E0E0;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    border-radius: 4px;
+    background: #4A90D9;
+}
+
+/* Tab widget */
+QTabWidget::pane {
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+}
+
+QTabBar::tab {
+    padding: 8px 16px;
+    border-bottom: 2px solid transparent;
+}
+
+QTabBar::tab:selected {
+    border-bottom-color: #4A90D9;
+    color: #4A90D9;
+    font-weight: bold;
+}
+
+/* Form inputs */
+QLineEdit, QSpinBox, QComboBox, QTimeEdit {
+    border: 1px solid #BDBDBD;
+    border-radius: 4px;
+    padding: 6px 8px;
+    background: white;
+    min-height: 28px;
+}
+
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+    border-color: #4A90D9;
+}
+
+/* Wizard */
+QWizard {
+    background: #FAFAFA;
+}
+
+/* Log viewer */
+QPlainTextEdit {
+    background: #1E1E1E;
+    color: #D4D4D4;
+    font-family: "Monospace", "Consolas", monospace;
+    font-size: 11px;
+    border: none;
+    border-radius: 4px;
+}
