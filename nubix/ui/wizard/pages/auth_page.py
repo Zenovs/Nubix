@@ -106,6 +106,16 @@ class _RcloneAuthThread(QThread):
     def __init__(self, provider_type: str, parent=None):
         super().__init__(parent)
         self._type = provider_type
+        self._proc: subprocess.Popen | None = None
+
+    def cancel(self) -> None:
+        """Terminate the rclone process so it releases port 53682."""
+        if self._proc is not None:
+            try:
+                self._proc.terminate()
+            except Exception:
+                pass
+            self._proc = None
 
     def run(self):
         try:
@@ -121,6 +131,7 @@ class _RcloneAuthThread(QThread):
                 bufsize=1,
                 env=_clean_env(),
             )
+            self._proc = proc
         except FileNotFoundError:
             self.auth_error.emit("rclone not found. Install it with:  sudo apt install rclone")
             return
@@ -132,10 +143,12 @@ class _RcloneAuthThread(QThread):
 
         url_emitted = False
         token_lines: list[str] = []
+        all_lines: list[str] = []
         capture = False
 
         for raw in proc.stdout:
             line = raw.rstrip()
+            all_lines.append(line)
 
             # Extract the authorization URL from rclone output.
             # rclone prints two URL-containing lines:
@@ -170,7 +183,11 @@ class _RcloneAuthThread(QThread):
         elif proc.returncode == 0:
             self.auth_done.emit("")
         else:
-            self.auth_error.emit("Authorization failed or was cancelled.")
+            snippet = "\n".join(all_lines[-20:]).strip() if all_lines else ""
+            msg = f"rclone exited with code {proc.returncode}."
+            if snippet:
+                msg += f"\n\n{snippet}"
+            self.auth_error.emit(msg)
 
 
 class AuthPage(QWizardPage):
@@ -412,8 +429,25 @@ class AuthPage(QWizardPage):
 
     # ── OAuth flow ─────────────────────────────────────────────────────────────
 
+    def cleanupPage(self):
+        """Called when the user navigates away — kill any running rclone process."""
+        if self._auth_thread is not None:
+            self._auth_thread.cancel()
+            self._auth_thread.quit()
+            self._auth_thread.wait(2000)
+            self._auth_thread = None
+
     def _start_oauth(self):
         from nubix.providers import get_provider
+
+        # Kill any previous rclone process so port 53682 is released before
+        # we start a new one (otherwise rclone exits immediately with
+        # "bind: address already in use" and the browser never opens).
+        if self._auth_thread is not None:
+            self._auth_thread.cancel()
+            self._auth_thread.quit()
+            self._auth_thread.wait(2000)
+            self._auth_thread = None
 
         provider_id = self.wizard().field("provider_id")
         try:

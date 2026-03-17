@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.13] — 2026-03-17
+
+### Bugfixes
+
+- Fix "address already in use" on port 53682: previous rclone processes were never terminated; each button click started a new rclone while the old one still held the port, so rclone exited immediately and the browser never opened — now kills the previous rclone process before starting a new one
+- Add `cleanupPage()` to terminate rclone when the user navigates away from the auth page
+- OAuth error message now includes the last 20 lines of rclone's actual output so the real failure reason is visible
+
 ## [0.2.12] — 2026-03-17
 
 ### Changes
