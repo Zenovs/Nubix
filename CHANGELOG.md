@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.11] — 2026-03-17
+
+### Bugfixes
+
+- Fix OAuth browser never opening: `--auth-no-open-browser` requires rclone ≥ 1.59; Ubuntu apt ships older versions which exit immediately with an error — removed the flag so rclone opens the browser itself
+- Fix AppImage xdg-open in rclone subprocess: rclone inherits the AppImage-overridden `LD_LIBRARY_PATH`; now spawn rclone with restored `LD_LIBRARY_PATH` so its internal xdg-open call uses system libs
+- Consolidate env-cleanup logic into `_clean_env()` helper used by both rclone spawn and manual "Open" button
+
 ## [0.2.10] — 2026-03-17
 
 ### Bugfixes

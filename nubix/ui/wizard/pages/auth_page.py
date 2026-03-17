@@ -24,24 +24,15 @@ from nubix.providers.base_provider import AuthType
 
 
 def _open_browser(url: str) -> None:
-    """Open a URL in the default browser, working correctly inside an AppImage.
+    """Open a URL in the default browser (fallback / manual open button).
 
-    AppImages override LD_LIBRARY_PATH to point to bundled libs.  Running
-    xdg-open with that path causes it to load the wrong glib/gio and silently
-    fail.  We restore the original LD_LIBRARY_PATH (saved by the AppImage
-    runtime as APPIMAGE_ORIGINAL_LD_LIBRARY_PATH) before spawning the process.
+    Uses a clean LD_LIBRARY_PATH so xdg-open works inside an AppImage.
     """
     import logging
 
     _log = logging.getLogger(__name__)
 
-    env = os.environ.copy()
-    orig = env.get("APPIMAGE_ORIGINAL_LD_LIBRARY_PATH")
-    if orig is not None:
-        env["LD_LIBRARY_PATH"] = orig
-    elif "APPIMAGE" in env:
-        # Running as AppImage but original not saved — clear it so system libs are used
-        env.pop("LD_LIBRARY_PATH", None)
+    env = _clean_env()
 
     # Try xdg-open; wait briefly to detect immediate failure
     xdg = shutil.which("xdg-open")
@@ -80,11 +71,32 @@ def _open_browser(url: str) -> None:
     QDesktopServices.openUrl(QUrl(url))
 
 
+def _clean_env() -> dict:
+    """Return os.environ with LD_LIBRARY_PATH restored to pre-AppImage value.
+
+    When Nubix runs as an AppImage the runtime overrides LD_LIBRARY_PATH to
+    point to its bundled libs.  Any child process (rclone, xdg-open, browsers)
+    that inherits this env will load the wrong glib/gio and silently fail.
+    We restore the original value before spawning any subprocess.
+    """
+    env = os.environ.copy()
+    orig = env.get("APPIMAGE_ORIGINAL_LD_LIBRARY_PATH")
+    if orig is not None:
+        env["LD_LIBRARY_PATH"] = orig
+    elif "APPIMAGE" in env:
+        env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
 class _RcloneAuthThread(QThread):
     """Runs `rclone authorize <type>` and emits the auth URL and token.
 
-    rclone opens the browser itself. We also parse and emit the URL so the UI
-    can show it as a copyable fallback link.
+    rclone opens the browser itself (no --auth-no-open-browser so this works
+    with any rclone version, including the older ones shipped by Ubuntu apt).
+    We spawn rclone with a clean LD_LIBRARY_PATH so that when rclone calls
+    xdg-open internally it uses system libs, not the AppImage-bundled ones.
+    We also parse the URL from the output so the UI can show it as a copyable
+    fallback in case the browser did not open.
     """
 
     auth_url = Signal(str)  # emitted as soon as URL is detected in output
@@ -97,15 +109,17 @@ class _RcloneAuthThread(QThread):
 
     def run(self):
         try:
-            # --auth-no-open-browser: rclone prints the URL but does NOT open a
-            # browser itself. The UI opens the browser via QDesktopServices so it
-            # works reliably inside the AppImage (no xdg-open access for rclone).
+            # Spawn rclone with a clean environment so xdg-open (called
+            # internally by rclone to open the browser) works correctly even
+            # inside an AppImage.  Do NOT pass --auth-no-open-browser: that
+            # flag was added in rclone v1.59; Ubuntu apt ships older versions.
             proc = subprocess.Popen(
-                ["rclone", "authorize", self._type, "--auth-no-open-browser"],
+                ["rclone", "authorize", self._type],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                env=_clean_env(),
             )
         except FileNotFoundError:
             self.auth_error.emit("rclone not found. Install it with:  sudo apt install rclone")
@@ -423,7 +437,8 @@ class AuthPage(QWizardPage):
         self._auth_thread.start()
 
     def _on_auth_url(self, url: str):
-        _open_browser(url)
+        # rclone already opened the browser (with our clean env).
+        # Just show the URL as a copyable fallback in case it did not open.
         self._url_field.setText(url)
         self._url_field.show()
         self._url_header.show()
