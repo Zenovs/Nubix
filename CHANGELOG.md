@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.7] — 2026-03-17
+
+### Changes
+
+- Version bump to test in-app update flow
+
 ## [0.2.6] — 2026-03-17
 
 ### Bugfixes
