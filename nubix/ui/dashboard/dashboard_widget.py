@@ -82,12 +82,21 @@ class DashboardWidget(QWidget):
         self._cards_layout = QVBoxLayout(cards_container)
         self._cards_layout.setContentsMargins(0, 0, 8, 0)
         self._cards_layout.setSpacing(12)
-        self._empty_label = QLabel(
-            "☁\n\nNo cloud connections yet.\nClick  ＋ Add Connection  to get started."
+        _ASCII = (
+            "███╗   ██╗██╗   ██╗██████╗ ██╗██╗  ██╗\n"
+            "████╗  ██║██║   ██║██╔══██╗██║╚██╗██╔╝\n"
+            "██╔██╗ ██║██║   ██║██████╔╝██║ ╚███╔╝ \n"
+            "██║╚██╗██║██║   ██║██╔══██╗██║ ██╔██╗ \n"
+            "██║ ╚████║╚██████╔╝██████╔╝██║██╔╝ ██╗\n"
+            "╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═╝\n\n"
+            "Cloud Sync Manager\n\n"
+            "No connections yet — click  ＋ Add Connection  to get started."
         )
+        self._empty_label = QLabel(_ASCII)
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_label.setStyleSheet(
-            "color: #8888AA; font-size: 15px; background: transparent; line-height: 1.8;"
+            "color: #3A3A5A; font-family: 'Courier New', 'Consolas', monospace;"
+            " font-size: 13px; background: transparent; line-height: 1.5;"
         )
         self._cards_layout.addWidget(self._empty_label)
         self._cards_layout.addStretch()

@@ -115,36 +115,50 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # App header
+        # ── ASCII art header ──
+        _ASCII = (
+            "███╗   ██╗██╗   ██╗██████╗ ██╗██╗  ██╗\n"
+            "████╗  ██║██║   ██║██╔══██╗██║╚██╗██╔╝\n"
+            "██╔██╗ ██║██║   ██║██████╔╝██║ ╚███╔╝ \n"
+            "██║╚██╗██║██║   ██║██╔══██╗██║ ██╔██╗ \n"
+            "██║ ╚████║╚██████╔╝██████╔╝██║██╔╝ ██╗\n"
+            "╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═╝"
+        )
         header = QWidget()
-        header.setFixedHeight(64)
         header.setStyleSheet(
             f"background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
             f" stop:0 {ACCENT}, stop:1 #A78BFA);"
         )
-        hl = QHBoxLayout(header)
-        hl.setContentsMargins(16, 0, 16, 0)
-        icon_lbl = QLabel("☁")
-        icon_lbl.setStyleSheet("color: white; font-size: 22px; background: transparent;")
-        hl.addWidget(icon_lbl)
-        title = QLabel("Nubix")
-        title.setStyleSheet(
-            "color: white; font-size: 20px; font-weight: 700;"
-            " letter-spacing: 1px; background: transparent;"
+        hl = QVBoxLayout(header)
+        hl.setContentsMargins(10, 10, 10, 8)
+        hl.setSpacing(2)
+
+        ascii_lbl = QLabel(_ASCII)
+        ascii_lbl.setStyleSheet(
+            "color: white; background: transparent;"
+            " font-family: 'Courier New', 'Consolas', monospace;"
+            " font-size: 5.4px; font-weight: bold; letter-spacing: 0px;"
         )
-        hl.addWidget(title)
-        hl.addStretch()
+        ascii_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        hl.addWidget(ascii_lbl)
+
+        sub_lbl = QLabel("Cloud Sync Manager")
+        sub_lbl.setStyleSheet(
+            "color: rgba(255,255,255,0.75); background: transparent;"
+            " font-size: 10px; letter-spacing: 1px;"
+        )
+        sub_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        hl.addWidget(sub_lbl)
+
+        ver_lbl = QLabel("v0.1.3")
+        ver_lbl.setStyleSheet(
+            "color: rgba(255,255,255,0.5); background: transparent;" " font-size: 9px;"
+        )
+        ver_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        hl.addWidget(ver_lbl)
+
         layout.addWidget(header)
-
-        # Version label
-        ver = QLabel("v0.1.2")
-        ver.setStyleSheet(
-            f"color: {TEXT_MUTED}; font-size: 10px; background: transparent;"
-            " padding: 4px 16px 0 16px;"
-        )
-        layout.addWidget(ver)
-
-        layout.addSpacing(8)
+        layout.addSpacing(6)
 
         # Nav list
         self._nav = QListWidget()

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.3] — 2026-03-17
+
+### Features
+
+- ASCII art logo visible in sidebar header, dashboard empty state, and README
+- All 40+ rclone backends supported (Google Drive, OneDrive, Dropbox, Box,
+  pCloud, MEGA, S3, Backblaze B2, Nextcloud, WebDAV, SFTP, FTP, SMB, and more)
+- Searchable provider list replaces 3-button grid
+- OAuth browser authorization now works: uses QDesktopServices + fallback URL link
+- Auth forms for S3 (access key/secret), SFTP/FTP (host/user/pass), Simple (MEGA etc.)
+- Settings nav item now opens the Settings dialog correctly
+
 ## [0.1.2] — 2026-03-17
 
 ### UI Redesign
