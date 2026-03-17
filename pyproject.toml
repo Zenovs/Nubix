@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "nubix"
-version = "0.2.3"
+version = "0.2.4"
 description = "A modern cloud sync manager for Ubuntu using rclone"
 authors = [{ name = "Nubix Contributors" }]
 license = { text = "MIT" }

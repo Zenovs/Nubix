@@ -9,7 +9,7 @@
 
 # Nubix — Cloud Sync Manager für Ubuntu
 
-Sync deine Dateien mit **Google Drive**, **Dropbox** und **Nextcloud** — einfach, sicher und kostenlos.
+Sync deine Dateien mit **40+ Cloud-Diensten** — Google Drive, Dropbox, OneDrive, S3, SFTP und vielen mehr. Einfach, sicher und kostenlos.
 
 > Powered by [rclone](https://rclone.org) mit einer modernen grafischen Oberfläche.
 
@@ -37,9 +37,8 @@ Das Skript installiert automatisch:
 
 | Feature | Beschreibung |
 |---|---|
-| ☁ **Google Drive** | OAuth2-Login, volle Drive-Integration |
-| 📦 **Dropbox** | OAuth2-Login |
-| 🔒 **Nextcloud** | WebDAV mit Benutzername & Passwort |
+| ☁ **40+ Anbieter** | Google Drive, Dropbox, OneDrive, S3, SFTP, WebDAV, MEGA und viele mehr |
+| 🔐 **OAuth2 & mehr** | OAuth2, WebDAV, S3, SFTP — je nach Anbieter |
 | 🔄 **3 Sync-Modi** | Full, Selektiv, Bidirektional |
 | 📊 **Live-Dashboard** | Fortschritt, Transferrate, aktuelle Datei |
 | 🖥 **System Tray** | Läuft im Hintergrund, immer erreichbar |
@@ -102,11 +101,10 @@ nubix/
 │   ├── scheduler.py          # Zeitfenster-Planung
 │   ├── bandwidth_controller.py
 │   └── updater.py            # Auto-Updater (GitHub Releases)
-├── providers/     # Ein Modul pro Cloud-Anbieter
+├── providers/     # Alle rclone-Backends
 └── ui/            # PySide6 GUI
     ├── main_window.py
     ├── system_tray.py
-    ├── update_dialog.py
     ├── dashboard/     # Echtzeit-Monitoring
     ├── wizard/        # Setup-Assistent
     ├── settings/      # Einstellungen

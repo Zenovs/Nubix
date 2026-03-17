@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.4] — 2026-03-17
+
+### Changes
+
+- Remove hardcoded "Google Drive · Dropbox · Nextcloud" from install.sh, README, and constants — Nubix supports 40+ rclone providers
+- install.sh: add `Cache-Control: no-cache` to GitHub API call to prevent stale version responses
+- install.sh: add `--retry 3 --retry-delay 3` to AppImage download for transient network errors
+
 ## [0.2.3] — 2026-03-17
 
 ### Bugfixes

@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = "Nubix"
 APP_ID = "com.nubix.app"
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 
 # Directories
 CONFIG_DIR = Path.home() / ".config" / "nubix"
@@ -25,7 +25,7 @@ AUTOSTART_DIR = Path.home() / ".config" / "autostart"
 AUTOSTART_FILE = AUTOSTART_DIR / "nubix.desktop"
 
 # Supported providers
-SUPPORTED_PROVIDERS = ["gdrive", "dropbox", "nextcloud"]
+SUPPORTED_PROVIDERS: list = []  # all rclone backends — see nubix/providers/__init__.py
 
 # Sync modes
 SYNC_MODE_FULL = "full"
