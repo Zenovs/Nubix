@@ -109,4 +109,4 @@ nubix/
 
 ## Lizenz
 
-MIT — kostenlos nutzbar, auch kommerziell.
+Proprietär — alle Rechte vorbehalten. Nicht für kommerzielle Nutzung, Weiterverteilung oder Modifikation ohne ausdrückliche Genehmigung des Autors.

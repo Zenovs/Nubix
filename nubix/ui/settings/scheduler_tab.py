@@ -98,12 +98,8 @@ class SchedulerTab(QWidget):
             w = rc.to_sync_job().schedule_windows[0]
             for i, cb in enumerate(self._day_checks):
                 cb.setChecked(i in w.days)
-            self._start_time.setTime(
-                QTime(w.start_time.hour, w.start_time.minute)
-            )
-            self._end_time.setTime(
-                QTime(w.end_time.hour, w.end_time.minute)
-            )
+            self._start_time.setTime(QTime(w.start_time.hour, w.start_time.minute))
+            self._end_time.setTime(QTime(w.end_time.hour, w.end_time.minute))
 
     def save(self):
         item = self._remote_list.currentItem()
