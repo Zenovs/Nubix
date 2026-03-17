@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3] — 2026-03-17
+
+### Bugfixes
+
+- Fix in-app update staying on old version after restart: `os.execv(sys.executable)` re-launched the Python binary inside the old AppImage squashfs mount; now uses `$APPIMAGE` env var to exec the new AppImage file directly
+
 ## [0.2.2] — 2026-03-17
 
 ### Bugfixes
