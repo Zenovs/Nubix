@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTime
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -98,16 +98,11 @@ class SchedulerTab(QWidget):
             w = rc.to_sync_job().schedule_windows[0]
             for i, cb in enumerate(self._day_checks):
                 cb.setChecked(i in w.days)
-            t = self._start_time.time()
             self._start_time.setTime(
-                __import__("PySide6.QtCore", fromlist=["QTime"]).QTime(
-                    w.start_time.hour, w.start_time.minute
-                )
+                QTime(w.start_time.hour, w.start_time.minute)
             )
             self._end_time.setTime(
-                __import__("PySide6.QtCore", fromlist=["QTime"]).QTime(
-                    w.end_time.hour, w.end_time.minute
-                )
+                QTime(w.end_time.hour, w.end_time.minute)
             )
 
     def save(self):
