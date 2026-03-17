@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
         )
         sub_row.addStretch()
         sub_row.addWidget(sub_lbl)
-        ver_lbl = QLabel("v0.1.8")
+        ver_lbl = QLabel("v0.1.9")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.4); background: transparent; font-size: 9px;"
         )

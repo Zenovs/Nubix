@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9] — 2026-03-17
+
+### Bugfixes
+
+- Fix update checker always showing outdated: `nubix/__init__.py` had hardcoded `0.1.0` — now reads correct version
+- Fix license string: changed from MIT to Proprietary
+
 ## [0.1.8] — 2026-03-17
 
 ### Bugfixes
