@@ -32,6 +32,7 @@ def _open_browser(url: str) -> None:
     runtime as APPIMAGE_ORIGINAL_LD_LIBRARY_PATH) before spawning the process.
     """
     import logging
+
     _log = logging.getLogger(__name__)
 
     env = os.environ.copy()
@@ -47,10 +48,14 @@ def _open_browser(url: str) -> None:
     if xdg:
         try:
             proc = subprocess.Popen(
-                [xdg, url], env=env, start_new_session=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                [xdg, url],
+                env=env,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             import time
+
             time.sleep(0.15)  # give xdg-open a moment to exit with an error
             ret = proc.poll()
             if ret is None or ret == 0:
