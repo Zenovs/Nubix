@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QWidget
 class AnimatedSpinner(QWidget):
     """A smooth animated spinner for indicating ongoing activity."""
 
-    def __init__(self, size: int = 24, color: str = "#4A90D9", parent=None):
+    def __init__(self, size: int = 24, color: str = "#7C5CFC", parent=None):
         super().__init__(parent)
         self._size = size
         self._color = QColor(color)

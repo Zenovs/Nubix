@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import collections
-import math
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QFont
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
 def _format_speed(bps: float) -> str:
@@ -26,30 +25,52 @@ class _SparklineWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(40)
+        self.setFixedHeight(48)
         self._data: collections.deque[float] = collections.deque(maxlen=60)
-        self._color = QColor("#4A90D9")
+        self._line_color = QColor("#7C5CFC")
+        self._fill_start = QColor(124, 92, 252, 80)
+        self._fill_end = QColor(124, 92, 252, 0)
 
     def push(self, bps: float):
         self._data.append(bps)
         self.update()
 
     def paintEvent(self, event):
-        if not self._data:
+        if len(self._data) < 2:
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
         max_val = max(self._data) or 1
 
-        pen = QPen(self._color, 1.5)
-        painter.setPen(pen)
-
         points = list(self._data)
         n = len(points)
         step = w / max(n - 1, 1)
-        coords = [(i * step, h - (v / max_val) * (h - 4) - 2) for i, v in enumerate(points)]
+        coords = [(i * step, h - (v / max_val) * (h - 6) - 3) for i, v in enumerate(points)]
 
+        # Fill area under curve
+        from PySide6.QtGui import QPolygonF
+        from PySide6.QtCore import QPointF
+
+        poly = QPolygonF()
+        poly.append(QPointF(coords[0][0], h))
+        for x, y in coords:
+            poly.append(QPointF(x, y))
+        poly.append(QPointF(coords[-1][0], h))
+
+        grad = QLinearGradient(0, 0, 0, h)
+        grad.setColorAt(0, self._fill_start)
+        grad.setColorAt(1, self._fill_end)
+        painter.setBrush(grad)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPolygon(poly)
+
+        # Draw line
+        pen = QPen(self._line_color, 2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         for i in range(1, len(coords)):
             painter.drawLine(
                 int(coords[i - 1][0]),
@@ -64,18 +85,29 @@ class TransferRateWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._label = QLabel("0 B/s", self)
+        self.setStyleSheet("background: transparent;")
+
+        header = QLabel("Transfer Speed")
+        header.setStyleSheet(
+            "color: #8888AA; font-size: 11px; font-weight: 600;"
+            " letter-spacing: 1px; text-transform: uppercase; background: transparent;"
+        )
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._label = QLabel("0 B/s")
         font = QFont()
-        font.setPointSize(13)
+        font.setPointSize(16)
         font.setBold(True)
         self._label.setFont(font)
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label.setStyleSheet("color: #7C5CFC; background: transparent;")
 
         self._sparkline = _SparklineWidget(self)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addWidget(header)
         layout.addWidget(self._label)
         layout.addWidget(self._sparkline)
 

@@ -38,41 +38,55 @@ class DashboardWidget(QWidget):
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 16, 20, 16)
-        root.setSpacing(12)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(16)
 
-        # Header
+        # ── Header ──
         header = QHBoxLayout()
-        title = QLabel("<h2>Cloud Connections</h2>")
+        title = QLabel("Cloud Connections")
+        title.setStyleSheet(
+            "color: #E2E2F0; font-size: 20px; font-weight: 700; background: transparent;"
+        )
         header.addWidget(title)
         header.addStretch()
 
-        self._btn_sync_all = QPushButton("↻  Sync All")
-        self._btn_sync_all.setFixedWidth(110)
+        self._btn_sync_all = QPushButton("↻   Sync All")
+        self._btn_sync_all.setFixedWidth(120)
+        self._btn_sync_all.setStyleSheet(
+            "QPushButton { background: #7C5CFC; color: white; border: none;"
+            " border-radius: 8px; padding: 8px 16px; font-weight: 600; }"
+            "QPushButton:hover { background: #9070FF; }"
+        )
         self._btn_sync_all.clicked.connect(self._sync_all)
         header.addWidget(self._btn_sync_all)
 
-        self._btn_pause_all = QPushButton("⏸  Pause All")
-        self._btn_pause_all.setFixedWidth(110)
+        self._btn_pause_all = QPushButton("⏸   Pause All")
+        self._btn_pause_all.setFixedWidth(120)
+        self._btn_pause_all.setStyleSheet(
+            "QPushButton { background: #2E2E50; color: #E2E2F0; border: 1px solid #3E3E60;"
+            " border-radius: 8px; padding: 8px 16px; font-weight: 600; }"
+            "QPushButton:hover { background: #3E3E60; }"
+            "QPushButton:disabled { background: #1E1E32; color: #4A4A6A; border-color: #2E2E50; }"
+        )
         self._btn_pause_all.clicked.connect(self._pause_all)
         header.addWidget(self._btn_pause_all)
 
         root.addLayout(header)
 
-        # Main splitter: cards (left) | progress panel (right)
+        # ── Main splitter: cards | right panel ──
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(1)
 
         # Cards area
         cards_container = QWidget()
         self._cards_layout = QVBoxLayout(cards_container)
-        self._cards_layout.setContentsMargins(0, 0, 0, 0)
-        self._cards_layout.setSpacing(10)
-        self._empty_label = QLabel(
-            "No cloud connections yet.\nClick 'Add Connection' to get started."
-        )
+        self._cards_layout.setContentsMargins(0, 0, 8, 0)
+        self._cards_layout.setSpacing(12)
+        self._empty_label = QLabel("☁\n\nNo cloud connections yet.\nClick  ＋ Add Connection  to get started.")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_label.setStyleSheet("color: #999; font-size: 14px;")
+        self._empty_label.setStyleSheet(
+            "color: #8888AA; font-size: 15px; background: transparent; line-height: 1.8;"
+        )
         self._cards_layout.addWidget(self._empty_label)
         self._cards_layout.addStretch()
 
@@ -84,9 +98,13 @@ class DashboardWidget(QWidget):
 
         # Right panel: speed + progress
         right_panel = QWidget()
-        right_panel.setFixedWidth(200)
+        right_panel.setFixedWidth(220)
+        right_panel.setStyleSheet(
+            "background: #161625; border-left: 1px solid #1E1E38; border-radius: 0;"
+        )
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(8, 0, 0, 0)
+        right_layout.setContentsMargins(12, 12, 12, 12)
+        right_layout.setSpacing(12)
         self._rate_widget = TransferRateWidget()
         right_layout.addWidget(self._rate_widget)
         self._progress_panel = ProgressPanel()

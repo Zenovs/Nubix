@@ -8,11 +8,11 @@ from PySide6.QtWidgets import QLabel
 from nubix.core.sync_job import JobStatus
 
 _STATUS_STYLES = {
-    JobStatus.IDLE: ("Idle", "#888888", "#f0f0f0"),
-    JobStatus.SYNCING: ("Syncing", "#1976D2", "#E3F2FD"),
-    JobStatus.PAUSED: ("Paused", "#F57C00", "#FFF3E0"),
-    JobStatus.ERROR: ("Error", "#D32F2F", "#FFEBEE"),
-    JobStatus.UP_TO_DATE: ("Up to date", "#388E3C", "#E8F5E9"),
+    JobStatus.IDLE: ("Idle", "#6B7280", "#1A1A2A"),
+    JobStatus.SYNCING: ("Syncing", "#60A5FA", "#0A1A30"),
+    JobStatus.PAUSED: ("Paused", "#FB923C", "#2A1500"),
+    JobStatus.ERROR: ("Error", "#F87171", "#2A0A0A"),
+    JobStatus.UP_TO_DATE: ("Up to date", "#4ADE80", "#0D2A1A"),
 }
 
 
@@ -25,11 +25,11 @@ class StatusBadge(QLabel):
         self.set_status(status)
 
     def set_status(self, status: JobStatus) -> None:
-        text, fg, bg = _STATUS_STYLES.get(status, ("Unknown", "#666", "#eee"))
+        text, fg, bg = _STATUS_STYLES.get(status, ("Unknown", "#6B7280", "#1A1A2A"))
         self.setText(text)
         self.setStyleSheet(
             f"QLabel {{ "
-            f"  color: {fg}; background: {bg}; border: 1px solid {fg}; "
-            f"  border-radius: 10px; padding: 2px 10px; font-size: 11px; font-weight: bold; "
+            f"  color: {fg}; background: {bg}; border: 1px solid {fg}40; "
+            f"  border-radius: 10px; padding: 3px 12px; font-size: 11px; font-weight: 700; "
             f"}}"
         )

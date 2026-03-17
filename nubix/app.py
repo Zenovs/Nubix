@@ -76,6 +76,9 @@ class NubixApp:
         """Show the main window and start background services."""
         from nubix.ui.main_window import MainWindow
         from nubix.ui.system_tray import SystemTray
+        from nubix.ui.theme import STYLESHEET
+
+        self._qt_app.setStyleSheet(STYLESHEET)
 
         self._window = MainWindow(
             config=self._config,

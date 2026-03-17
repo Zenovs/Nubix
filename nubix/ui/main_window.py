@@ -102,50 +102,75 @@ class MainWindow(QMainWindow):
         # Separator line
         sep = QWidget()
         sep.setFixedWidth(1)
-        sep.setStyleSheet("background: #ddd;")
+        sep.setStyleSheet("background: #1E1E38;")
         root.addWidget(sep)
 
         root.addWidget(self._stack, 1)
 
     def _build_sidebar(self) -> QWidget:
+        from nubix.ui.theme import BG, SURFACE, CARD, ACCENT, ACCENT_HOVER, TEXT, TEXT_MUTED
+
         sidebar = QWidget()
         sidebar.setFixedWidth(SIDEBAR_WIDTH)
-        sidebar.setStyleSheet("background: #F5F5F5;")
+        sidebar.setStyleSheet(f"background: {SURFACE};")
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         # App header
         header = QWidget()
-        header.setFixedHeight(56)
-        header.setStyleSheet("background: #4A90D9;")
+        header.setFixedHeight(64)
+        header.setStyleSheet(
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+            f" stop:0 {ACCENT}, stop:1 #A78BFA);"
+        )
         hl = QHBoxLayout(header)
+        hl.setContentsMargins(16, 0, 16, 0)
+        icon_lbl = QLabel("☁")
+        icon_lbl.setStyleSheet("color: white; font-size: 22px; background: transparent;")
+        hl.addWidget(icon_lbl)
         title = QLabel("Nubix")
-        title.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
+        title.setStyleSheet(
+            "color: white; font-size: 20px; font-weight: 700;"
+            " letter-spacing: 1px; background: transparent;"
+        )
         hl.addWidget(title)
+        hl.addStretch()
         layout.addWidget(header)
+
+        # Version label
+        ver = QLabel("v0.1.1")
+        ver.setStyleSheet(
+            f"color: {TEXT_MUTED}; font-size: 10px; background: transparent;"
+            " padding: 4px 16px 0 16px;"
+        )
+        layout.addWidget(ver)
+
+        layout.addSpacing(8)
 
         # Nav list
         self._nav = QListWidget()
         self._nav.setStyleSheet(
-            "QListWidget { border: none; background: transparent; outline: none; }"
-            "QListWidget::item { padding: 12px 16px; font-size: 14px; }"
-            "QListWidget::item:selected { background: #E3F2FD; color: #1976D2; }"
-            "QListWidget::item:hover { background: #EEEEEE; }"
+            f"QListWidget {{ border: none; background: transparent; outline: none; }}"
+            f"QListWidget::item {{ padding: 12px 16px; font-size: 14px;"
+            f"  border-radius: 8px; margin: 2px 8px; color: {TEXT_MUTED}; }}"
+            f"QListWidget::item:selected {{ background: {ACCENT}; color: white; font-weight: 600; }}"
+            f"QListWidget::item:hover:!selected {{ background: {CARD}; color: {TEXT}; }}"
         )
         for name, icon in _NAV_ITEMS:
-            item = QListWidgetItem(f"{icon}  {name}")
+            item = QListWidgetItem(f"{icon}   {name}")
             self._nav.addItem(item)
         self._nav.setCurrentRow(0)
         self._nav.currentRowChanged.connect(self._stack.setCurrentIndex)
         layout.addWidget(self._nav, 1)
 
         # Add connection button at bottom of sidebar
-        btn_add = QPushButton("+ Add Connection")
+        btn_add = QPushButton("＋  Add Connection")
         btn_add.setStyleSheet(
-            "QPushButton { background: #4A90D9; color: white; border: none; "
-            "padding: 12px; font-size: 13px; font-weight: bold; }"
-            "QPushButton:hover { background: #1976D2; }"
+            f"QPushButton {{ background: {ACCENT}; color: white; border: none;"
+            f" padding: 12px; font-size: 13px; font-weight: 700;"
+            f" border-radius: 0; }}"
+            f"QPushButton:hover {{ background: {ACCENT_HOVER}; }}"
         )
         btn_add.clicked.connect(self.open_wizard)
         layout.addWidget(btn_add)
