@@ -15,13 +15,19 @@ class GenericProvider(BaseProvider):
         self.auth_type = auth_type
 
     def get_rclone_type(self) -> str:
+        # WebDAV-based providers all use the "webdav" rclone backend
+        if self.auth_type == AuthType.WEBDAV_BASIC:
+            return "webdav"
         return self.provider_id
 
     def get_rclone_config_args(self, credentials: dict) -> list[str]:
-        args = []
+        # First element MUST be the rclone backend type
+        args = [self.get_rclone_type()]
         if self.auth_type == AuthType.WEBDAV_BASIC:
             args += ["url", credentials.get("url", "")]
-            args += ["vendor", self.provider_id if self.provider_id != "webdav" else "other"]
+            # vendor: use provider_id for known vendors, "other" for generic webdav
+            vendor = self.provider_id if self.provider_id != "webdav" else "other"
+            args += ["vendor", vendor]
             args += ["user", credentials.get("username", "")]
             args += ["pass", credentials.get("password", "")]
         elif self.auth_type == AuthType.S3:

@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
         )
         sub_row.addStretch()
         sub_row.addWidget(sub_lbl)
-        ver_lbl = QLabel("v0.1.9")
+        ver_lbl = QLabel("v0.2.0")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.4); background: transparent; font-size: 9px;"
         )
@@ -207,7 +207,7 @@ class MainWindow(QMainWindow):
     def open_wizard(self):
         from nubix.ui.wizard.setup_wizard import SetupWizard
 
-        wizard = SetupWizard(self._registry, self._vault, self._engine, self)
+        wizard = SetupWizard(self._registry, self._vault, self._engine, self._sync, self)
         wizard.exec()
 
     def open_settings(self):

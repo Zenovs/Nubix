@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0] — 2026-03-17
+
+### Bugfixes
+
+- Fix dashboard not showing connections after wizard: rclone type was missing from `config_args`, causing `rclone config create` to fail silently and skip `add_remote`
+- Fix WebDAV providers (Nextcloud, ownCloud, etc.) using wrong rclone backend — now correctly uses `webdav` type with `vendor` parameter
+- Add error dialog in wizard when rclone configuration fails (instead of silent failure)
+- Implement "Start sync now" on confirmation page — passes SyncManager to wizard
+
 ## [0.1.9] — 2026-03-17
 
 ### Bugfixes

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from pathlib import Path
 
-from PySide6.QtWidgets import QWizard
+from PySide6.QtWidgets import QMessageBox, QWizard
 
 from nubix.core.credential_vault import CredentialVault
 from nubix.core.rclone_engine import RcloneEngine
 from nubix.core.remote_registry import RemoteRegistry
+from nubix.core.sync_manager import SyncManager
 from nubix.core.sync_job import SyncMode
 from nubix.providers import get_provider
 from nubix.ui.wizard.pages.auth_page import AuthPage
@@ -37,12 +39,14 @@ class SetupWizard(QWizard):
         registry: RemoteRegistry,
         vault: CredentialVault,
         engine: RcloneEngine,
+        sync_manager: SyncManager | None = None,
         parent=None,
     ):
         super().__init__(parent)
         self._registry = registry
         self._vault = vault
         self._engine = engine
+        self._sync = sync_manager
         self._auth_page = AuthPage()
 
         self.setWindowTitle("Add Cloud Connection — Nubix")
@@ -70,6 +74,7 @@ class SetupWizard(QWizard):
             provider = get_provider(provider_id)
         except Exception as e:
             logger.error("Unknown provider %s: %s", provider_id, e)
+            QMessageBox.critical(self, "Error", f"Unknown provider: {provider_id}")
             return
 
         # Ensure local folder exists
@@ -77,15 +82,19 @@ class SetupWizard(QWizard):
         lp.mkdir(parents=True, exist_ok=True)
 
         # Derive a unique remote_id
-        import uuid
-
         remote_id = f"{provider_id}_{str(uuid.uuid4())[:6]}"
 
-        # Configure rclone remote
+        # Configure rclone remote (type is the first element of config_args)
         config_args = provider.get_rclone_config_args(credentials)
         success = self._engine.configure_remote(remote_id, config_args)
         if not success:
             logger.error("rclone remote configuration failed for %s", remote_id)
+            QMessageBox.critical(
+                self,
+                "Configuration Error",
+                f"Failed to configure the {provider.display_name} remote.\n\n"
+                "Make sure rclone is installed and the credentials are correct.",
+            )
             return
 
         # Store credentials in vault
@@ -93,7 +102,7 @@ class SetupWizard(QWizard):
             if value:
                 self._vault.store(remote_id, key, str(value))
 
-        # Register remote
+        # Register remote — emits remote_added, which adds the card to the dashboard
         rc = self._registry.add_remote(
             {
                 "remote_id": remote_id,
@@ -111,5 +120,6 @@ class SetupWizard(QWizard):
         # Optionally start sync immediately
         conf_page = self.page(PAGE_CONFIRMATION)
         if isinstance(conf_page, ConfirmationPage) and conf_page.should_start_now():
-            # Signal to the main app to start this job — registry.remote_added handles it
-            logger.info("Triggering immediate sync for %s", remote_id)
+            if self._sync is not None:
+                logger.info("Starting immediate sync for %s", remote_id)
+                self._sync.start_job(rc.to_sync_job())
