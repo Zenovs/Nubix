@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(header)
 
         # Version label
-        ver = QLabel("v0.1.1")
+        ver = QLabel("v0.1.2")
         ver.setStyleSheet(
             f"color: {TEXT_MUTED}; font-size: 10px; background: transparent;"
             " padding: 4px 16px 0 16px;"

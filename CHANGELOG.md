@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.2] — 2026-03-17
+
+### UI Redesign
+
+- Complete dark theme: deep navy background, purple accent (#7C5CFC)
+- Gradient sidebar header, accent-highlighted navigation
+- Redesigned sync cards with gradient progress bars and styled buttons
+- Dark-friendly status badges (blue/green/orange/red)
+- Modern transfer rate widget with filled sparkline
+- Consistent typography, spacing, and hover states throughout
+
 ## [0.1.1] — 2026-03-17
 
 ### Bugfixes
