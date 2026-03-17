@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
@@ -16,6 +16,8 @@ from nubix.providers import list_providers
 
 
 class ProviderSelectPage(QWizardPage):
+    _provider_id_changed = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTitle("Choose a Cloud Provider")
@@ -53,7 +55,8 @@ class ProviderSelectPage(QWizardPage):
 
         self._populate(self._providers)
 
-        self.registerField("provider_id*", self, "provider_id", self._list.currentRowChanged)
+        # changedSignal must belong to self (the page), not to a child widget
+        self.registerField("provider_id*", self, "provider_id", self._provider_id_changed)
 
     def _populate(self, providers):
         self._list.clear()
@@ -88,6 +91,7 @@ class ProviderSelectPage(QWizardPage):
             )
         except Exception:
             pass
+        self._provider_id_changed.emit(self._get_provider_id())
         self.completeChanged.emit()
 
     def _get_provider_id(self) -> str:

@@ -38,10 +38,11 @@ class _RcloneAuthThread(QThread):
     def run(self):
         try:
             proc = subprocess.Popen(
-                ["rclone", "authorize", "--auth-no-open-browser", self._type],
+                ["rclone", "authorize", self._type, "--auth-no-open-browser"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                bufsize=1,
             )
             url_emitted = False
             token_lines: list[str] = []
@@ -49,16 +50,24 @@ class _RcloneAuthThread(QThread):
 
             for line in proc.stdout:
                 line = line.rstrip()
-                # rclone prints the URL with this prefix
-                if not url_emitted and ("https://" in line or "http://localhost" in line):
-                    # extract URL
-                    for part in line.split():
-                        if part.startswith("http"):
-                            self.auth_url.emit(part)
+
+                # rclone prints the auth URL — extract it regardless of surrounding text
+                if not url_emitted and "http" in line:
+                    import re
+
+                    match = re.search(r"https?://\S+", line)
+                    if match:
+                        url = match.group(0).rstrip(".")
+                        # skip localhost-only lines (rclone's redirect server)
+                        if "accounts." in url or "auth" in url or "oauth" in url or "login" in url:
+                            self.auth_url.emit(url)
                             url_emitted = True
-                            break
-                # Token appears between these markers
-                if "Paste the following" in line or "--->" in line:
+                        elif not url_emitted and "127.0.0.1" not in url and "localhost" not in url:
+                            self.auth_url.emit(url)
+                            url_emitted = True
+
+                # Token appears between ---> and <--- markers
+                if "--->" in line:
                     capture = True
                     continue
                 if capture and "<---" in line:

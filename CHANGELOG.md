@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.4] — 2026-03-17
+
+### Bugfixes
+
+- Fix LogViewer crash: add `@Slot(str, int)` so Qt meta-object can invoke `_append_line`
+- Fix wizard provider field: `registerField` signal must belong to the page — add `_provider_id_changed` Signal
+- Fix OAuth browser: rclone provider type must come before `--auth-no-open-browser` flag
+- Improve auth URL detection with regex to handle all rclone output formats
+
 ## [0.1.3] — 2026-03-17
 
 ### Features

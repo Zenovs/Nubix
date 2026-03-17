@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QMetaObject, Q_ARG
+from PySide6.QtCore import Qt, QMetaObject, Q_ARG, Slot
 from PySide6.QtGui import QColor, QTextCursor, QFont
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -84,6 +84,7 @@ class LogViewer(QWidget):
         handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
         logging.getLogger().addHandler(handler)
 
+    @Slot(str, int)
     def _append_line(self, msg: str, level: int):
         color = _LEVEL_COLORS.get(level, "#333")
         cursor = self._text.textCursor()
