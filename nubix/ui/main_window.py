@@ -90,10 +90,8 @@ class MainWindow(QMainWindow):
         self._log_viewer = LogViewer()
         self._stack.addWidget(self._log_viewer)
 
-        # Settings page — lazy loaded
-        self._settings_placeholder = QLabel("Settings")
-        self._settings_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._stack.addWidget(self._settings_placeholder)
+        # Settings — not a stack page; nav click opens the dialog
+        self._stack.addWidget(QWidget())  # index 2 placeholder (never shown)
 
         # Sidebar (references self._stack, so must come after)
         sidebar = self._build_sidebar()
@@ -161,7 +159,7 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(f"{icon}   {name}")
             self._nav.addItem(item)
         self._nav.setCurrentRow(0)
-        self._nav.currentRowChanged.connect(self._stack.setCurrentIndex)
+        self._nav.currentRowChanged.connect(self._on_nav_changed)
         layout.addWidget(self._nav, 1)
 
         # Add connection button at bottom of sidebar
@@ -176,6 +174,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(btn_add)
 
         return sidebar
+
+    def _on_nav_changed(self, row: int):
+        if row == 2:  # Settings
+            self._nav.setCurrentRow(self._stack.currentIndex())  # snap back
+            self.open_settings()
+        else:
+            self._stack.setCurrentIndex(row)
 
     def _connect_signals(self):
         self._sync.any_job_active.connect(self._on_any_active)

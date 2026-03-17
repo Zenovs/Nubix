@@ -58,10 +58,14 @@ jobs:
           python-version: '3.11'
 
       - name: Install linters
-        run: pip install ruff black
+        run: pip install "ruff>=0.3" "black>=24.0"
 
       - name: ruff
         run: ruff check nubix/ tests/ main.py
 
       - name: black
         run: black --check nubix/ tests/ main.py
+
+      - name: Show versions (debug)
+        if: always()
+        run: ruff --version && black --version
