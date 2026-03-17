@@ -32,6 +32,8 @@ class ConfirmationPage(QWizardPage):
         layout.addStretch()
 
     def initializePage(self):
+        from nubix.providers import get_provider
+
         provider_id = self.wizard().field("provider_id") or ""
         local_path = self.wizard().field("local_path") or ""
         sync_mode = self.wizard().field("sync_mode_value") or SyncMode.FULL.value
@@ -41,13 +43,13 @@ class ConfirmationPage(QWizardPage):
             SyncMode.SELECTIVE.value: "Selective Sync",
             SyncMode.BIDIRECTIONAL.value: "Bidirectional Sync",
         }
-        provider_names = {
-            "gdrive": "Google Drive",
-            "dropbox": "Dropbox",
-            "nextcloud": "Nextcloud",
-        }
 
-        self._provider_lbl.setText(provider_names.get(provider_id, provider_id))
+        try:
+            provider_name = get_provider(provider_id).display_name
+        except Exception:
+            provider_name = provider_id
+
+        self._provider_lbl.setText(provider_name)
         self._path_lbl.setText(local_path)
         self._mode_lbl.setText(mode_labels.get(sync_mode, sync_mode))
 

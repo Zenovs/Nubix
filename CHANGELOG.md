@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1] — 2026-03-17
+
+### Bugfixes
+
+- Fix `QWizard::field: No such field 'sync_mode_value'`: field was registered as `"sync_mode"` but accessed as `"sync_mode_value"` everywhere — name unified; Python `property` replaced with Qt `Property`
+- Fix `SyncModePage` `changedSignal` belonging to child `QButtonGroup` instead of the page — add `_sync_mode_changed` Signal on the page class
+- Fix confirmation page showing wrong provider name for non-Dropbox/Drive/Nextcloud providers — use `get_provider()` instead of hardcoded 3-entry dict
+
 ## [0.2.0] — 2026-03-17
 
 ### Bugfixes
