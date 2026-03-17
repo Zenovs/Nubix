@@ -81,17 +81,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Sidebar
-        sidebar = self._build_sidebar()
-        root.addWidget(sidebar)
-
-        # Separator line
-        sep = QWidget()
-        sep.setFixedWidth(1)
-        sep.setStyleSheet("background: #ddd;")
-        root.addWidget(sep)
-
-        # Page stack
+        # Page stack — must be created before sidebar (sidebar connects to it)
         self._stack = QStackedWidget()
 
         self._dashboard = DashboardWidget(self._registry, self._sync)
@@ -104,6 +94,16 @@ class MainWindow(QMainWindow):
         self._settings_placeholder = QLabel("Settings")
         self._settings_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._stack.addWidget(self._settings_placeholder)
+
+        # Sidebar (references self._stack, so must come after)
+        sidebar = self._build_sidebar()
+        root.addWidget(sidebar)
+
+        # Separator line
+        sep = QWidget()
+        sep.setFixedWidth(1)
+        sep.setStyleSheet("background: #ddd;")
+        root.addWidget(sep)
 
         root.addWidget(self._stack, 1)
 

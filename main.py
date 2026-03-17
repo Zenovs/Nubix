@@ -16,12 +16,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 def main() -> int:
     """Application entry point."""
     from PySide6.QtWidgets import QApplication
-    from PySide6.QtCore import Qt
-    from PySide6.QtGui import QIcon
-
-    # Enable high DPI scaling
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Nubix")
