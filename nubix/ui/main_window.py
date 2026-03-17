@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
         bandwidth: BandwidthController,
         vault: CredentialVault,
         engine: RcloneEngine,
+        updater=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -62,6 +63,7 @@ class MainWindow(QMainWindow):
         self._bandwidth = bandwidth
         self._vault = vault
         self._engine = engine
+        self._updater = updater
 
         self.setWindowTitle("Nubix — Cloud Sync")
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
@@ -150,7 +152,7 @@ class MainWindow(QMainWindow):
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         hl.addWidget(sub_lbl)
 
-        ver_lbl = QLabel("v0.1.4")
+        ver_lbl = QLabel("v0.1.5")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.5); background: transparent;" " font-size: 9px;"
         )
@@ -213,7 +215,14 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         from nubix.ui.settings.settings_dialog import SettingsDialog
 
-        dlg = SettingsDialog(self._config, self._registry, self._scheduler, self._bandwidth, self)
+        dlg = SettingsDialog(
+            self._config,
+            self._registry,
+            self._scheduler,
+            self._bandwidth,
+            self._updater,
+            self,
+        )
         dlg.exec()
 
     # ------------------------------------------------------------------

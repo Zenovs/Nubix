@@ -24,11 +24,12 @@ class SettingsDialog(QDialog):
         registry: RemoteRegistry,
         scheduler: Scheduler,
         bandwidth: BandwidthController,
+        updater=None,
         parent=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Nubix Settings")
-        self.setMinimumSize(600, 450)
+        self.setMinimumSize(640, 500)
 
         self._config = config
         self._pending: dict = {}
@@ -43,16 +44,21 @@ class SettingsDialog(QDialog):
         from nubix.ui.settings.bandwidth_tab import BandwidthTab
         from nubix.ui.settings.scheduler_tab import SchedulerTab
         from nubix.ui.settings.remotes_tab import RemotesTab
+        from nubix.ui.settings.update_tab import UpdateTab
 
         self._general_tab = GeneralTab(config)
         self._bandwidth_tab = BandwidthTab(bandwidth)
         self._scheduler_tab = SchedulerTab(registry, scheduler)
         self._remotes_tab = RemotesTab(registry)
 
-        self._tabs.addTab(self._general_tab, "General")
-        self._tabs.addTab(self._bandwidth_tab, "Bandwidth")
-        self._tabs.addTab(self._scheduler_tab, "Scheduler")
-        self._tabs.addTab(self._remotes_tab, "Connections")
+        self._tabs.addTab(self._general_tab, "⚙  General")
+        self._tabs.addTab(self._bandwidth_tab, "📶  Bandwidth")
+        self._tabs.addTab(self._scheduler_tab, "🕐  Scheduler")
+        self._tabs.addTab(self._remotes_tab, "☁  Connections")
+
+        if updater is not None:
+            self._update_tab = UpdateTab(updater)
+            self._tabs.addTab(self._update_tab, "🔄  Updates")
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel

@@ -88,6 +88,7 @@ class NubixApp:
             bandwidth=self._bandwidth,
             vault=self._vault,
             engine=self._engine or _NullEngine(),
+            updater=self._updater,
         )
 
         # System tray

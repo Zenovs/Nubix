@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5] — 2026-03-17
+
+### Features
+
+- Update tab in Settings: check for updates, see release notes, download & install in one click
+- Progress bar during download, automatic restart after installation
+
 ## [0.1.4] — 2026-03-17
 
 ### Bugfixes
