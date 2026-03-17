@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import QThread, QUrl, Qt, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QApplication,
     QFormLayout,
@@ -20,6 +21,44 @@ from PySide6.QtWidgets import (
 )
 
 from nubix.providers.base_provider import AuthType
+
+
+def _open_browser(url: str) -> None:
+    """Open a URL in the default browser, working correctly inside an AppImage.
+
+    AppImages override LD_LIBRARY_PATH to point to bundled libs.  Running
+    xdg-open with that path causes it to load the wrong glib/gio and silently
+    fail.  We restore the original LD_LIBRARY_PATH (saved by the AppImage
+    runtime as APPIMAGE_ORIGINAL_LD_LIBRARY_PATH) before spawning the process.
+    """
+    env = os.environ.copy()
+    orig = env.get("APPIMAGE_ORIGINAL_LD_LIBRARY_PATH")
+    if orig is not None:
+        env["LD_LIBRARY_PATH"] = orig
+    elif "APPIMAGE" in env:
+        # Running as AppImage but original not saved — clear it so system libs are used
+        env.pop("LD_LIBRARY_PATH", None)
+
+    # Try xdg-open (most reliable on Linux desktops)
+    xdg = shutil.which("xdg-open")
+    if xdg:
+        try:
+            subprocess.Popen([xdg, url], env=env, start_new_session=True)
+            return
+        except Exception:
+            pass
+
+    # Fallback: Python webbrowser module
+    try:
+        import webbrowser
+
+        webbrowser.open(url)
+        return
+    except Exception:
+        pass
+
+    # Last resort: Qt
+    QDesktopServices.openUrl(QUrl(url))
 
 
 class _RcloneAuthThread(QThread):
@@ -356,9 +395,7 @@ class AuthPage(QWizardPage):
         self._auth_thread.start()
 
     def _on_auth_url(self, url: str):
-        # rclone used --auth-no-open-browser, so we open it via Qt (works in AppImage)
-        QDesktopServices.openUrl(QUrl(url))
-
+        _open_browser(url)
         self._url_field.setText(url)
         self._url_field.show()
         self._url_header.show()
@@ -396,7 +433,7 @@ class AuthPage(QWizardPage):
     def _open_url_manually(self):
         url = self._url_field.text()
         if url:
-            QDesktopServices.openUrl(QUrl(url))
+            _open_browser(url)
 
     def _set_status(self, text: str, color: str):
         self._status_label.setText(text)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.8] — 2026-03-17
+
+### Bugfixes
+
+- Fix browser not opening in AppImage: AppImage overrides `LD_LIBRARY_PATH` which breaks `xdg-open`; restore original `LD_LIBRARY_PATH` (from `APPIMAGE_ORIGINAL_LD_LIBRARY_PATH`) before spawning browser process
+- Fallback chain: `xdg-open` → `webbrowser` module → `QDesktopServices`
+
 ## [0.2.7] — 2026-03-17
 
 ### Changes
