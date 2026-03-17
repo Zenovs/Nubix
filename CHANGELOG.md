@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.5] — 2026-03-17
+
+### Changes
+
+- Remove cloud icon (☁) from sidebar header
+
 ## [0.2.4] — 2026-03-17
 
 ### Changes

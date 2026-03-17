@@ -34,7 +34,7 @@ from nubix.ui.logs.log_viewer import LogViewer
 logger = logging.getLogger(__name__)
 
 _NAV_ITEMS = [
-    ("Dashboard", "☁"),
+    ("Dashboard", "⊞"),
     ("Log", "📋"),
     ("Settings", "⚙"),
 ]
@@ -129,10 +129,6 @@ class MainWindow(QMainWindow):
         hl.setSpacing(2)
 
         title_row = QHBoxLayout()
-        icon_lbl = QLabel("☁")
-        icon_lbl.setStyleSheet("color: white; font-size: 24px; background: transparent;")
-        title_row.addWidget(icon_lbl)
-
         name_lbl = QLabel("NUBIX")
         name_lbl.setStyleSheet(
             "color: white; font-size: 22px; font-weight: 800;"
@@ -150,7 +146,7 @@ class MainWindow(QMainWindow):
         )
         sub_row.addStretch()
         sub_row.addWidget(sub_lbl)
-        ver_lbl = QLabel("v0.2.4")
+        ver_lbl = QLabel("v0.2.5")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.4); background: transparent; font-size: 9px;"
         )
