@@ -89,11 +89,13 @@ class GeneralTab(QWidget):
             self._rclone_path.setText(path)
 
     def _update_autostart(self, enable: bool):
+        import os
         import shutil
 
         AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
         if enable:
-            binary = shutil.which("nubix") or "nubix"
+            # Prefer $APPIMAGE path (set by AppImage runtime), fall back to PATH lookup
+            binary = os.environ.get("APPIMAGE") or shutil.which("nubix") or "nubix"
             content = (
                 "[Desktop Entry]\n"
                 "Type=Application\n"

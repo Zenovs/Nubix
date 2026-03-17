@@ -67,12 +67,15 @@ class NubixApp:
             self._scheduler.trigger_start.connect(self._on_scheduler_trigger_start)
             self._scheduler.trigger_stop.connect(self._sync_manager.stop_job)
 
+        # Keep scheduler in sync when remotes are updated via settings
+        self._registry.remote_updated.connect(self._on_remote_updated)
+
         self._bandwidth = BandwidthController(self._config)
         self._updater = Updater()
 
         qt_app.aboutToQuit.connect(self._shutdown)
 
-    def start(self):
+    def start(self, background: bool = False):
         """Show the main window and start background services."""
         from nubix.ui.main_window import MainWindow
         from nubix.ui.system_tray import SystemTray
@@ -110,7 +113,8 @@ class NubixApp:
         # Connect updater
         self._updater.update_available.connect(self._on_update_available)
 
-        self._window.show()
+        if not background:
+            self._window.show()
         self._scheduler.start()
 
         # Check for updates after a short delay (don't block startup)
@@ -131,6 +135,17 @@ class NubixApp:
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
+
+    def _on_remote_updated(self, rc):
+        """Refresh scheduler when a remote's schedule settings change."""
+        self._scheduler.remove_job(rc.remote_id)
+        if rc.is_enabled and rc.is_scheduled:
+            job = rc.to_sync_job()
+            if job.schedule_windows:
+                try:
+                    self._scheduler.add_job(job)
+                except Exception as e:
+                    logger.warning("Scheduler update failed for %s: %s", rc.remote_id, e)
 
     def _on_scheduler_trigger_start(self, job_id: str):
         if not self._sync_manager:
@@ -168,11 +183,12 @@ class NubixApp:
 class _NullSyncManager:
     """No-op sync manager when rclone is not available."""
 
-    any_job_active = property(lambda self: _NullSignal())
-    job_failed = property(lambda self: _NullSignal())
-    job_status_changed = property(lambda self: _NullSignal())
-    progress_updated = property(lambda self: _NullSignal())
-    file_transferred = property(lambda self: _NullSignal())
+    def __init__(self):
+        self.any_job_active = _NullSignal()
+        self.job_failed = _NullSignal()
+        self.job_status_changed = _NullSignal()
+        self.progress_updated = _NullSignal()
+        self.file_transferred = _NullSignal()
 
     def start_job(self, job):
         pass

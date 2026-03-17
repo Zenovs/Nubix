@@ -31,6 +31,7 @@ class RemoteConfig:
     filters: list[str] = field(default_factory=list)
     bandwidth_limit: str = "0"
     is_scheduled: bool = False
+    schedule_windows: list = field(default_factory=list)  # list of dicts
 
     def to_dict(self) -> dict:
         return {
@@ -44,6 +45,7 @@ class RemoteConfig:
             "filters": self.filters,
             "bandwidth_limit": self.bandwidth_limit,
             "is_scheduled": self.is_scheduled,
+            "schedule_windows": self.schedule_windows,
         }
 
     @classmethod
@@ -59,12 +61,25 @@ class RemoteConfig:
             filters=data.get("filters", []),
             bandwidth_limit=data.get("bandwidth_limit", "0"),
             is_scheduled=data.get("is_scheduled", False),
+            schedule_windows=data.get("schedule_windows", []),
         )
 
     def to_sync_job(self) -> SyncJob:
+        from datetime import time
         from pathlib import Path
 
+        from nubix.core.sync_job import TimeWindow
+
+        windows = [
+            TimeWindow(
+                days=w["days"],
+                start_time=time.fromisoformat(w["start_time"]),
+                end_time=time.fromisoformat(w["end_time"]),
+            )
+            for w in self.schedule_windows
+        ]
         return SyncJob(
+            job_id=self.remote_id,  # stable ID so scheduler can look up by remote_id
             remote_id=self.remote_id,
             provider_type=self.provider_type,
             local_path=Path(self.local_path),
@@ -73,6 +88,7 @@ class RemoteConfig:
             filters=self.filters,
             bandwidth_limit=self.bandwidth_limit,
             is_scheduled=self.is_scheduled,
+            schedule_windows=windows,
         )
 
 

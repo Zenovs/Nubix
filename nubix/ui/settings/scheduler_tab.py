@@ -109,4 +109,20 @@ class SchedulerTab(QWidget):
         rc = self._registry.get_remote(remote_id)
         data = rc.to_dict()
         data["is_scheduled"] = self._enable_schedule.isChecked()
+
+        # Save the schedule window from UI
+        days = [i for i, cb in enumerate(self._day_checks) if cb.isChecked()]
+        start_qt = self._start_time.time()
+        end_qt = self._end_time.time()
+        if days:
+            data["schedule_windows"] = [
+                {
+                    "days": days,
+                    "start_time": f"{start_qt.hour():02d}:{start_qt.minute():02d}:00",
+                    "end_time": f"{end_qt.hour():02d}:{end_qt.minute():02d}:00",
+                }
+            ]
+        else:
+            data["schedule_windows"] = []
+
         self._registry.update_remote(remote_id, data)

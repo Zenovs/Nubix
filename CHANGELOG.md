@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.9] — 2026-03-17
+
+### Bugfixes
+
+- Fix scheduler never triggering: `SyncJob.job_id` was a random UUID while `_on_scheduler_trigger_start` looked up remotes by `remote_id` — jobs now use `remote_id` as their stable `job_id`
+- Fix scheduler settings not saving time window: `SchedulerTab.save()` only saved `is_scheduled` flag, discarding days/start/end selections; now persists full window data
+- Fix `RemoteConfig` not storing schedule windows: added `schedule_windows` field to `RemoteConfig`, `to_dict()`, `from_dict()`, and `to_sync_job()`
+- Fix scheduler not updating when settings are saved: connect `registry.remote_updated` → `scheduler.update_job` in `app.py`
+- Fix `_NullSyncManager` signals: `any_job_active` etc. were Python `property(lambda: _NullSignal())` returning a new throwaway object each call — `.connect()` was silently discarded; now instance attributes set in `__init__`
+- Fix autostart using wrong binary path in AppImage: use `$APPIMAGE` env var when available, fall back to `shutil.which`
+- Fix autostart opening main window: `--background` flag now suppresses the main window on launch (system tray only)
+
 ## [0.2.8] — 2026-03-17
 
 ### Bugfixes
