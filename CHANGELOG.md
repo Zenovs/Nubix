@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1] — 2026-03-17
+
+### Bugfixes
+
+- Fix startup crash: `_stack` widget was referenced before creation in `MainWindow`
+- Remove deprecated Qt attributes `AA_EnableHighDpiScaling` / `AA_UseHighDpiPixmaps`
+- Fix `scheduler_tab.py`: replace dynamic `__import__` with proper `QTime` import, remove unused variable
+- Fix black formatting in scheduler tab
+
 ## [0.1.0] — 2026-03-17
 
 ### Initial Release
