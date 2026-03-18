@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.17] — 2026-03-18
+
+### Bugfixes
+
+- Fix update installing old version after restart: `UpdateDialog._on_restart` used `os.execv(sys.executable)` which re-launched the Python interpreter inside the OLD AppImage squashfs mount — now uses `$APPIMAGE` env var to exec the new AppImage file directly
+
 ## [0.2.16] — 2026-03-17
 
 ### Changes

@@ -102,8 +102,26 @@ class UpdateDialog(QDialog):
 
     def _on_restart(self):
         self._status_label.setText("Update installed! Restarting…")
-        import os
-        import sys
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication
 
-        # Re-exec the current process with the same arguments
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        QApplication.processEvents()  # flush the label update to screen
+
+        def _do_restart():
+            import os
+            import sys
+
+            # Must exec the AppImage file itself, not sys.executable.
+            # Inside an AppImage, sys.executable points to the Python
+            # interpreter inside the OLD squashfs mount — running it would
+            # start the old version again.  $APPIMAGE is the path of the
+            # AppImage file we just replaced, so exec'ing that launches
+            # the new version.
+            appimage = os.environ.get("APPIMAGE")
+            if appimage:
+                os.execv(appimage, [appimage] + sys.argv[1:])
+            else:
+                # Dev / PyInstaller fallback
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+
+        QTimer.singleShot(400, _do_restart)
