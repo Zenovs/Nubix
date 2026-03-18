@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] — 2026-03-18
+
+### Bugfixes
+
+- Fix `--resync-mode` unknown flag error: `--resync-mode` was introduced in rclone v1.64 and caused a fatal error on older installations — removed the flag so bisync resync works across all supported rclone versions
+
 ## [0.2.19] — 2026-03-18
 
 ### Bugfixes
