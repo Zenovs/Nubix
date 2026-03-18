@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.19] — 2026-03-18
+
+### Bugfixes
+
+- **Upload to cloud**: All sync modes (Full, Selective, Bidirectional) now use `rclone bisync` — previously Full and Selective used `rclone copy` which only downloaded from cloud to local, never uploading local changes back to cloud
+- Updated sync mode descriptions in setup wizard to reflect bidirectional behavior
+
 ## [0.2.18] — 2026-03-18
 
 ### Bugfixes

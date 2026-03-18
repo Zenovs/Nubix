@@ -16,14 +16,18 @@ from nubix.core.sync_job import SyncMode
 _MODES = [
     (
         SyncMode.FULL,
-        "Full Sync (Download Everything)",
-        "All files are downloaded and available offline. Uses the most disk space.",
+        "Full Sync",
+        "All files are synced in both directions — uploads local changes and downloads cloud changes.",
     ),
-    (SyncMode.SELECTIVE, "Selective Sync", "Choose which folders to download. Saves disk space."),
+    (
+        SyncMode.SELECTIVE,
+        "Selective Sync",
+        "Choose which folders to sync. Changes go both ways — uploads and downloads.",
+    ),
     (
         SyncMode.BIDIRECTIONAL,
         "Bidirectional Sync",
-        "Changes on your computer are uploaded, and changes in the cloud are downloaded.",
+        "Same as Full Sync with advanced conflict resolution options.",
     ),
 ]
 

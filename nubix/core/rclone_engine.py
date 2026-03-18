@@ -261,10 +261,7 @@ class RcloneEngine(QObject):
 
     def start_sync(self, job: SyncJob) -> RcloneProcess:
         """Build rclone command and launch a sync subprocess."""
-        is_first_bisync = (
-            job.sync_mode == SyncMode.BIDIRECTIONAL
-            and not self._is_bisync_initialized(job.remote_id)
-        )
+        is_first_bisync = not self._is_bisync_initialized(job.remote_id)
         cmd = self._build_command(job, resync=is_first_bisync)
         logger.info("Starting sync job %s: %s", job.job_id, " ".join(cmd))
 
@@ -287,16 +284,10 @@ class RcloneEngine(QObject):
         remote_src = f"{job.remote_id}:{job.remote_path}"
         local_dst = str(job.local_path)
 
-        # Choose rclone sub-command based on sync mode
-        if job.sync_mode == SyncMode.FULL:
-            subcmd = "copy"
-            src, dst = remote_src, local_dst
-        elif job.sync_mode == SyncMode.BIDIRECTIONAL:
-            subcmd = "bisync"
-            src, dst = local_dst, remote_src
-        else:  # SELECTIVE — uses copy with filters
-            subcmd = "copy"
-            src, dst = remote_src, local_dst
+        # All modes use bisync so that local changes are also uploaded to the cloud.
+        # path1 = local, path2 = remote (bisync convention)
+        subcmd = "bisync"
+        src, dst = local_dst, remote_src
 
         cmd = [
             self._binary,
