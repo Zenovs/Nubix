@@ -7,6 +7,7 @@ RcloneProcess owns the subprocess and emits Qt signals from reader threads.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -17,7 +18,7 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from nubix.constants import RCLONE_BINARY, RCLONE_CONFIG_FILE
+from nubix.constants import BISYNC_STATE_FILE, RCLONE_BINARY, RCLONE_CONFIG_FILE
 from nubix.core.rclone_parser import parse_error_line, parse_progress_line
 from nubix.core.sync_job import SyncJob, SyncMode, TransferStats
 from nubix.exceptions import RcloneExecutionError, RcloneNotFoundError
@@ -231,9 +232,40 @@ class RcloneEngine(QObject):
         )
         return result.returncode == 0
 
+    # ------------------------------------------------------------------
+    # Bisync first-run state tracking
+    # ------------------------------------------------------------------
+
+    def _is_bisync_initialized(self, remote_id: str) -> bool:
+        """Return True if bisync has been successfully run once for this remote."""
+        try:
+            data = json.loads(BISYNC_STATE_FILE.read_text())
+            return bool(data.get(remote_id))
+        except Exception:
+            return False
+
+    def _mark_bisync_initialized(self, remote_id: str) -> None:
+        """Persist that bisync is initialized for this remote."""
+        try:
+            try:
+                data = json.loads(BISYNC_STATE_FILE.read_text())
+            except Exception:
+                data = {}
+            data[remote_id] = True
+            BISYNC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            BISYNC_STATE_FILE.write_text(json.dumps(data))
+        except Exception as e:
+            logger.warning("Could not write bisync state: %s", e)
+
+    # ------------------------------------------------------------------
+
     def start_sync(self, job: SyncJob) -> RcloneProcess:
         """Build rclone command and launch a sync subprocess."""
-        cmd = self._build_command(job)
+        is_first_bisync = (
+            job.sync_mode == SyncMode.BIDIRECTIONAL
+            and not self._is_bisync_initialized(job.remote_id)
+        )
+        cmd = self._build_command(job, resync=is_first_bisync)
         logger.info("Starting sync job %s: %s", job.job_id, " ".join(cmd))
 
         process = subprocess.Popen(
@@ -241,9 +273,17 @@ class RcloneEngine(QObject):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        return RcloneProcess(process, job.job_id)
+        rclone_proc = RcloneProcess(process, job.job_id)
 
-    def _build_command(self, job: SyncJob) -> list[str]:
+        if is_first_bisync:
+            rid = job.remote_id
+            rclone_proc.finished.connect(
+                lambda code, r=rid: self._mark_bisync_initialized(r) if code == 0 else None
+            )
+
+        return rclone_proc
+
+    def _build_command(self, job: SyncJob, resync: bool = False) -> list[str]:
         remote_src = f"{job.remote_id}:{job.remote_path}"
         local_dst = str(job.local_path)
 
@@ -270,6 +310,10 @@ class RcloneEngine(QObject):
             "--use-json-log",
             "--log-level=INFO",
         ]
+
+        # First-time bisync: establish baseline without conflict errors
+        if resync:
+            cmd += ["--resync", "--resync-mode", "path2"]
 
         # Bandwidth limit
         if job.bandwidth_limit and job.bandwidth_limit != "0":

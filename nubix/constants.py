@@ -19,6 +19,7 @@ CACHE_DIR = Path.home() / ".cache" / "nubix"
 # Config file names
 GLOBAL_CONFIG_FILE = CONFIG_DIR / "config.yaml"
 VAULT_FILE = CONFIG_DIR / "vault.enc"
+BISYNC_STATE_FILE = CONFIG_DIR / "bisync_state.json"
 
 # Autostart
 AUTOSTART_DIR = Path.home() / ".config" / "autostart"

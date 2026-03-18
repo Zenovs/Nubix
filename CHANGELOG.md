@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.18] — 2026-03-18
+
+### Bugfixes
+
+- **Incremental sync**: `rclone copy` already only transfers changed files — `rclone bisync` now automatically adds `--resync` on first run to establish baseline (without it, bisync always failed with exit code 2 and appeared to redo everything)
+- Bisync initialization state persisted in `~/.config/nubix/bisync_state.json` — survives restarts, so `--resync` is only used once per remote
+
 ## [0.2.17] — 2026-03-18
 
 ### Bugfixes

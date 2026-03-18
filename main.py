@@ -19,7 +19,7 @@ def main() -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Nubix")
-    app.setApplicationVersion("0.2.17")
+    app.setApplicationVersion("0.2.18")
     app.setOrganizationName("Nubix")
     app.setQuitOnLastWindowClosed(False)  # Keep running in system tray
 
