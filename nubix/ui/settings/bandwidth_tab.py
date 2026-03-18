@@ -83,9 +83,7 @@ class BandwidthTab(QWidget):
         gl = QVBoxLayout(global_group)
         gl.setSpacing(12)
 
-        info = QLabel(
-            "Applied when no bandwidth schedule is active.  Set to 0 for unlimited."
-        )
+        info = QLabel("Applied when no bandwidth schedule is active.  Set to 0 for unlimited.")
         info.setWordWrap(True)
         gl.addWidget(info)
 
