@@ -304,7 +304,7 @@ class RcloneEngine(QObject):
 
         # First-time bisync: establish baseline without conflict errors
         if resync:
-            cmd += ["--resync", "--resync-mode", "path2"]
+            cmd += ["--resync"]
 
         # Bandwidth limit
         if job.bandwidth_limit and job.bandwidth_limit != "0":
