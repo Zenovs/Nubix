@@ -300,6 +300,7 @@ class RcloneEngine(QObject):
             "--stats-one-line",
             "--use-json-log",
             "--log-level=INFO",
+            "--drive-skip-gdocs",
         ]
 
         # First-time bisync: establish baseline without conflict errors

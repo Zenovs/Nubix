@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] — 2026-03-18
+
+### Bugfixes
+
+- Fix "can't update google document type without --drive-import-formats" sync errors: added `--drive-skip-gdocs` flag so rclone skips native Google Docs/Sheets/Slides files that cannot be copied directly
+
 ## [0.3.0] — 2026-03-18
 
 ### Bugfixes
