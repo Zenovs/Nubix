@@ -255,6 +255,20 @@ class RcloneEngine(QObject):
         except Exception as e:
             logger.warning("Could not write bisync state: %s", e)
 
+    def _reset_bisync_initialized(self, remote_id: str) -> None:
+        """Clear the initialized flag so the next run uses --resync to rebuild listings."""
+        try:
+            try:
+                data = json.loads(BISYNC_STATE_FILE.read_text())
+            except Exception:
+                data = {}
+            data.pop(remote_id, None)
+            BISYNC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            BISYNC_STATE_FILE.write_text(json.dumps(data))
+            logger.info("Bisync state reset for %s — next run will use --resync", remote_id)
+        except Exception as e:
+            logger.warning("Could not reset bisync state: %s", e)
+
     # ------------------------------------------------------------------
 
     def start_sync(self, job: SyncJob) -> RcloneProcess:
@@ -270,11 +284,17 @@ class RcloneEngine(QObject):
         )
         rclone_proc = RcloneProcess(process, job.job_id)
 
-        if is_first_bisync:
-            rid = job.remote_id
-            rclone_proc.finished.connect(
-                lambda code, r=rid: self._mark_bisync_initialized(r) if code == 0 else None
-            )
+        rid = job.remote_id
+
+        def _on_bisync_finished(code: int, remote_id: str = rid) -> None:
+            if code == 0:
+                self._mark_bisync_initialized(remote_id)
+            else:
+                # Critical error or any failure: reset state so next run uses --resync
+                # to rebuild the missing/corrupted bisync listing files.
+                self._reset_bisync_initialized(remote_id)
+
+        rclone_proc.finished.connect(_on_bisync_finished)
 
         return rclone_proc
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.3] — 2026-03-24
+
+### Bugfixes
+
+- Fix "bisync critical error: cannot find prior Path1 or Path2 listings": when bisync fails with any error, the initialization state is now reset so the next sync automatically runs with `--resync` to rebuild the missing listing files — previously the state was never cleared on failure, causing every subsequent sync to fail with the same critical error
+
 ## [0.3.2] — 2026-03-24
 
 ### Bugfixes
