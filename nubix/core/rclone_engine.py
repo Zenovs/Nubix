@@ -300,8 +300,11 @@ class RcloneEngine(QObject):
             "--stats-one-line",
             "--use-json-log",
             "--log-level=INFO",
-            "--drive-skip-gdocs",
         ]
+
+        # Google Drive-specific: skip native Docs/Sheets/Slides (not downloadable)
+        if job.provider_type == "gdrive":
+            cmd += ["--drive-skip-gdocs"]
 
         # First-time bisync: establish baseline without conflict errors
         if resync:
