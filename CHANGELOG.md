@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2] — 2026-03-24
+
+### Bugfixes
+
+- Fix sync failing for Dropbox and all non-Google-Drive providers: `--drive-skip-gdocs` is a Google Drive-specific rclone flag and was incorrectly applied to all providers — now only added when the provider is Google Drive
+- Remove redundant `import json` inside `list_remote_dirs` (already imported at module level)
+- Sync `APP_VERSION` constant with actual release version
+
 ## [0.3.1] — 2026-03-18
 
 ### Bugfixes

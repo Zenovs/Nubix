@@ -194,8 +194,6 @@ class RcloneEngine(QObject):
         if result.returncode != 0:
             logger.warning("lsjson failed: %s", result.stderr)
             return []
-        import json
-
         try:
             return json.loads(result.stdout) or []
         except Exception:
