@@ -321,9 +321,7 @@ class RcloneEngine(QObject):
         # Reset state immediately when the "listing files missing" error is detected
         # in the rclone output — this way the very next sync attempt will use --resync
         # without waiting for the process to finish first.
-        rclone_proc.resync_required.connect(
-            lambda r=rid: self._reset_bisync_initialized(r)
-        )
+        rclone_proc.resync_required.connect(lambda r=rid: self._reset_bisync_initialized(r))
 
         def _on_bisync_finished(code: int, remote_id: str = rid) -> None:
             if code == 0:
