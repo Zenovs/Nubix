@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.4] — 2026-03-24
+
+### Bugfixes
+
+- Fix "bisync critical error: cannot find prior Path1 or Path2 listings" — three-layer fix:
+  1. **Pre-flight check**: before starting bisync, rclone's own listing files in `~/.cache/rclone/bisync/` are verified; if the cache is empty (system clean, reinstall, etc.) `--resync` is forced immediately without needing a failed run first
+  2. **Instant state reset**: the specific error string is detected in rclone's live output and the bisync state is cleared right away — the very next sync attempt will use `--resync` automatically
+  3. **Post-exit reset**: any non-zero exit code also resets the state as a safety net
+
 ## [0.3.3] — 2026-03-24
 
 ### Bugfixes

@@ -48,6 +48,11 @@ class _ReaderThread(QThread):
             self.finished.emit()
 
 
+# rclone bisync emits this string when its listing files are missing.
+# It means --resync is required to rebuild the baseline.
+_BISYNC_MISSING_LISTINGS = "cannot find prior Path1 or Path2 listings"
+
+
 class RcloneProcess(QObject):
     """
     Wraps a running rclone subprocess.
@@ -57,12 +62,14 @@ class RcloneProcess(QObject):
         file_transferred(str)
         error_occurred(str)
         finished(int)  — exit code
+        resync_required()  — bisync listing files missing, next run needs --resync
     """
 
     progress_updated = Signal(object)  # TransferStats
     file_transferred = Signal(str)  # filename
     error_occurred = Signal(str)  # human-readable error
     finished = Signal(int)  # exit code
+    resync_required = Signal()  # bisync listing files are missing
 
     def __init__(self, process: subprocess.Popen, job_id: str, parent: QObject | None = None):
         super().__init__(parent)
@@ -90,6 +97,12 @@ class RcloneProcess(QObject):
                 self.file_transferred.emit(stats.current_file)
 
     def _on_stderr(self, line: str):
+        # Detect the specific bisync "listing files missing" critical error immediately
+        # so the state can be reset before the process even finishes.
+        if _BISYNC_MISSING_LISTINGS in line:
+            logger.warning("Bisync listing files missing — resync required: %s", self.job_id)
+            self.resync_required.emit()
+
         err = parse_error_line(line)
         if err:
             self.error_occurred.emit(err.message)
@@ -235,12 +248,31 @@ class RcloneEngine(QObject):
     # ------------------------------------------------------------------
 
     def _is_bisync_initialized(self, remote_id: str) -> bool:
-        """Return True if bisync has been successfully run once for this remote."""
+        """Return True if bisync has been successfully run once for this remote.
+
+        Also verifies that rclone's listing files actually exist in its cache dir.
+        If the cache is empty (e.g. after a system clean), forces --resync even if
+        our state file claims the remote is already initialized.
+        """
         try:
             data = json.loads(BISYNC_STATE_FILE.read_text())
-            return bool(data.get(remote_id))
+            if not data.get(remote_id):
+                return False
         except Exception:
             return False
+
+        # Belt-and-suspenders: if rclone's bisync cache has no listing files at all,
+        # the state in our file is stale — force a resync to rebuild them.
+        bisync_cache = Path.home() / ".cache" / "rclone" / "bisync"
+        if not bisync_cache.exists() or not any(bisync_cache.rglob("*.lst")):
+            logger.info(
+                "rclone bisync listing files missing from cache — forcing --resync for %s",
+                remote_id,
+            )
+            self._reset_bisync_initialized(remote_id)
+            return False
+
+        return True
 
     def _mark_bisync_initialized(self, remote_id: str) -> None:
         """Persist that bisync is initialized for this remote."""
@@ -286,12 +318,18 @@ class RcloneEngine(QObject):
 
         rid = job.remote_id
 
+        # Reset state immediately when the "listing files missing" error is detected
+        # in the rclone output — this way the very next sync attempt will use --resync
+        # without waiting for the process to finish first.
+        rclone_proc.resync_required.connect(
+            lambda r=rid: self._reset_bisync_initialized(r)
+        )
+
         def _on_bisync_finished(code: int, remote_id: str = rid) -> None:
             if code == 0:
                 self._mark_bisync_initialized(remote_id)
             else:
-                # Critical error or any failure: reset state so next run uses --resync
-                # to rebuild the missing/corrupted bisync listing files.
+                # Any failure: reset state so next run uses --resync.
                 self._reset_bisync_initialized(remote_id)
 
         rclone_proc.finished.connect(_on_bisync_finished)
