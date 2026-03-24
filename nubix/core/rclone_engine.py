@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -247,29 +248,56 @@ class RcloneEngine(QObject):
     # Bisync first-run state tracking
     # ------------------------------------------------------------------
 
-    def _is_bisync_initialized(self, remote_id: str) -> bool:
-        """Return True if bisync has been successfully run once for this remote.
+    @staticmethod
+    def _bisync_safe_path(path: str) -> str:
+        """Sanitize a path the same way rclone bisync names its listing files.
 
-        Also verifies that rclone's listing files actually exist in its cache dir.
-        If the cache is empty (e.g. after a system clean), forces --resync even if
-        our state file claims the remote is already initialized.
+        rclone replaces '/', '\\', ':' with '_' and strips leading/trailing '_'.
+        """
+        return re.sub(r"[/\\:]", "_", path).strip("_")
+
+    def _is_bisync_initialized(self, job: SyncJob) -> bool:
+        """Return True if bisync has been successfully run once for this job.
+
+        Also verifies that the *specific* listing files for this job exist in
+        rclone's cache directory.  Checking for any listing file (old behaviour)
+        was wrong: if Remote A had listings but Remote B did not, Remote B still
+        got True and crashed without --resync.
         """
         try:
             data = json.loads(BISYNC_STATE_FILE.read_text())
-            if not data.get(remote_id):
+            if not data.get(job.remote_id):
                 return False
         except Exception:
             return False
 
-        # Belt-and-suspenders: if rclone's bisync cache has no listing files at all,
-        # the state in our file is stale — force a resync to rebuild them.
+        # Check that the listing files for THIS job exist in the bisync cache.
+        # rclone names them: {safe_path1}--{safe_path2}.path1.lst
+        # path1 = local dir, path2 = remote (bisync convention in _build_command)
+        p2_safe = self._bisync_safe_path(f"{job.remote_id}:{job.remote_path}")
         bisync_cache = Path.home() / ".cache" / "rclone" / "bisync"
-        if not bisync_cache.exists() or not any(bisync_cache.rglob("*.lst")):
+
+        if not bisync_cache.exists():
             logger.info(
-                "rclone bisync listing files missing from cache — forcing --resync for %s",
-                remote_id,
+                "rclone bisync cache directory missing — forcing --resync for %s",
+                job.remote_id,
             )
-            self._reset_bisync_initialized(remote_id)
+            self._reset_bisync_initialized(job.remote_id)
+            return False
+
+        # Look for a listing file whose name ends with "--{remote_safe}.path1.lst"
+        # This is remote-specific: only this job's listings satisfy the pattern.
+        has_listing = any(
+            f.name.endswith(f"--{p2_safe}.path1.lst")
+            for f in bisync_cache.iterdir()
+            if f.is_file()
+        )
+        if not has_listing:
+            logger.info(
+                "rclone bisync listing file missing for %s — forcing --resync",
+                job.remote_id,
+            )
+            self._reset_bisync_initialized(job.remote_id)
             return False
 
         return True
@@ -305,7 +333,7 @@ class RcloneEngine(QObject):
 
     def start_sync(self, job: SyncJob) -> RcloneProcess:
         """Build rclone command and launch a sync subprocess."""
-        is_first_bisync = not self._is_bisync_initialized(job.remote_id)
+        is_first_bisync = not self._is_bisync_initialized(job)
         cmd = self._build_command(job, resync=is_first_bisync)
         logger.info("Starting sync job %s: %s", job.job_id, " ".join(cmd))
 

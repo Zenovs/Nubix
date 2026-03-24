@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5] — 2026-03-24
+
+### Bugfixes
+
+- Fix "bisync critical error: cannot find prior Path1 or Path2 listings" (definitive fix): the pre-flight listing-file check was incorrectly testing whether *any* remote had listing files in `~/.cache/rclone/bisync/` — if Remote A had files but Remote B did not, Remote B still got `True` and ran without `--resync`, causing the crash. Now checks for the *specific* listing file of the current job using rclone's naming convention (`{safe_local}--{safe_remote}.path1.lst`), so each remote is checked independently and gets `--resync` exactly when it needs it.
+
 ## [0.3.4] — 2026-03-24
 
 ### Bugfixes
