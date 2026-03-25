@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.8] — 2026-03-25
+
+### Bugfixes
+
+- Fix local sync directory creation failure silently continuing: if `mkdir` fails and the path still doesn't exist, sync now aborts immediately with a clear `OSError` instead of letting rclone fail with a cryptic message
+- Fix bisync state reset too aggressive: only reset on rclone exit code 2 (bisync critical error) — transient errors (network timeout, exit code 1) no longer force a needless full `--resync` on the next run
+- Fix Google Drive new connections missing `scope = drive`: provider registry now sets `scope drive` when creating a Google Drive remote so rclone gets full read/write access without interactive prompts
+- Fix `_supports_resync_acknowledged()` return type: always returns a plain `bool` (was `Optional[bool]` after the cache was populated)
+
 ## [0.3.7] — 2026-03-25
 
 ### Bugfixes

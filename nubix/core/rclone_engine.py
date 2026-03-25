@@ -287,7 +287,7 @@ class RcloneEngine(QObject):
                 self._resync_ack = "--resync-acknowledged" in result.stdout
             except Exception:
                 self._resync_ack = False
-        return self._resync_ack
+        return bool(self._resync_ack)
 
     def _mark_bisync_initialized(self, remote_id: str) -> None:
         """Persist that bisync is initialized for this remote."""
@@ -338,6 +338,10 @@ class RcloneEngine(QObject):
             job.local_path.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             logger.warning("Could not create local sync directory %s: %s", job.local_path, e)
+        if not job.local_path.exists():
+            raise OSError(
+                f"Local sync directory does not exist and could not be created: {job.local_path}"
+            )
 
         # Check that the remote is actually configured — gives a clear error instead
         # of rclone's cryptic "error listing: directory not found".
@@ -365,9 +369,12 @@ class RcloneEngine(QObject):
         def _on_bisync_finished(code: int, remote_id: str = rid) -> None:
             if code == 0:
                 self._mark_bisync_initialized(remote_id)
-            else:
-                # Any failure: reset state so next run uses --resync.
+            elif code == 2:
+                # Exit code 2 = bisync critical error (e.g. listing files missing,
+                # conflict detected). Reset so next run uses --resync to rebuild.
                 self._reset_bisync_initialized(remote_id)
+            # Transient errors (network timeout, exit code 1) do NOT reset state —
+            # the existing listings are still valid; forcing --resync would be wasteful.
 
         rclone_proc.finished.connect(_on_bisync_finished)
 

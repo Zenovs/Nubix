@@ -47,6 +47,10 @@ class GenericProvider(BaseProvider):
             args += ["user", credentials.get("username", "")]
             args += ["pass", credentials.get("password", "")]
         elif self.auth_type == AuthType.OAUTH2:
+            # Google Drive requires scope to be set explicitly so rclone gets
+            # full read/write access instead of prompting interactively.
+            if self.provider_id == "drive":
+                args += ["scope", "drive"]
             if credentials.get("token"):
                 args += ["token", credentials["token"]]
         return args
