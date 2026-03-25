@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.12] — 2026-03-25
+
+### Changes
+
+- Add full rclone output logging: all unrecognised stdout/stderr lines are now logged at DEBUG level so failed syncs show the exact rclone error message instead of just the exit code
+
 ## [0.3.11] — 2026-03-25
 
 ### Bugfixes
