@@ -22,7 +22,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from nubix.constants import BISYNC_STATE_FILE, RCLONE_BINARY, RCLONE_CONFIG_FILE
 from nubix.core.rclone_parser import parse_error_line, parse_progress_line
 from nubix.core.sync_job import SyncJob, SyncMode, TransferStats
-from nubix.exceptions import RcloneExecutionError, RcloneNotFoundError
+from nubix.exceptions import RcloneExecutionError, RcloneNotFoundError, RemoteNotConfiguredError
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +318,19 @@ class RcloneEngine(QObject):
 
     # ------------------------------------------------------------------
 
+    def _remote_in_config(self, remote_id: str) -> bool:
+        """Return True if remote_id exists in Nubix's rclone config file."""
+        try:
+            result = subprocess.run(
+                [self._binary, "config", "show", remote_id, "--config", str(RCLONE_CONFIG_FILE)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.returncode == 0 and "type" in result.stdout
+        except Exception:
+            return True  # assume present; let rclone fail with the real error
+
     def start_sync(self, job: SyncJob) -> RcloneProcess:
         """Build rclone command and launch a sync subprocess."""
         # Ensure local directory exists — bisync requires both paths to be present.
@@ -325,6 +338,11 @@ class RcloneEngine(QObject):
             job.local_path.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             logger.warning("Could not create local sync directory %s: %s", job.local_path, e)
+
+        # Check that the remote is actually configured — gives a clear error instead
+        # of rclone's cryptic "error listing: directory not found".
+        if not self._remote_in_config(job.remote_id):
+            raise RemoteNotConfiguredError(job.remote_id)
 
         is_first_bisync = not self._is_bisync_initialized(job)
         cmd = self._build_command(job, resync=is_first_bisync)
@@ -377,8 +395,10 @@ class RcloneEngine(QObject):
             "--log-level=INFO",
         ]
 
-        # Google Drive-specific: skip native Docs/Sheets/Slides (not downloadable)
-        if job.provider_type == "gdrive":
+        # Google Drive-specific: skip native Docs/Sheets/Slides (not downloadable).
+        # provider_type is stored as the rclone backend name ("drive") from the
+        # provider registry, but may also be the legacy Nubix id "gdrive".
+        if job.provider_type in ("drive", "gdrive"):
             cmd += ["--drive-skip-gdocs"]
 
         # First-time bisync: establish baseline without conflict errors.

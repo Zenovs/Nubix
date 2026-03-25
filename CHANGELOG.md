@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.7] — 2026-03-25
+
+### Bugfixes
+
+- Fix Google Drive sync always failing with "error listing: directory not found": `--drive-skip-gdocs` was never added because the stored `provider_type` is `"drive"` (rclone's backend name) but the code checked for `"gdrive"` — now checks for both
+- Add pre-flight config check: if the rclone remote is missing from Nubix's rclone config (e.g. OAuth setup failed silently), the sync now fails immediately with a clear message ("Cloud connection not set up — please re-add it") instead of rclone's cryptic "error listing: directory not found"
+
 ## [0.3.6] — 2026-03-25
 
 ### Bugfixes
