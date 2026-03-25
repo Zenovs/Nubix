@@ -275,16 +275,31 @@ class RcloneEngine(QObject):
         return True
 
     def _supports_resync_acknowledged(self) -> bool:
-        """Return True if this rclone supports --resync-acknowledged (v1.64+)."""
+        """Return True if this rclone supports --resync-acknowledged (v1.64+).
+
+        Detects via version number — more reliable than help-text parsing because
+        rclone prints 'help bisync' to stderr on some builds/platforms.
+        """
         if self._resync_ack is None:
             try:
                 result = subprocess.run(
-                    [self._binary, "help", "bisync"],
+                    [self._binary, "version"],
                     capture_output=True,
                     text=True,
                     timeout=10,
                 )
-                self._resync_ack = "--resync-acknowledged" in result.stdout
+                m = re.search(r"rclone v(\d+)\.(\d+)", result.stdout)
+                if m:
+                    self._resync_ack = (int(m.group(1)), int(m.group(2))) >= (1, 64)
+                else:
+                    # Fallback: scan both stdout and stderr of 'help bisync'
+                    h = subprocess.run(
+                        [self._binary, "help", "bisync"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    self._resync_ack = "--resync-acknowledged" in (h.stdout + h.stderr)
             except Exception:
                 self._resync_ack = False
         return bool(self._resync_ack)

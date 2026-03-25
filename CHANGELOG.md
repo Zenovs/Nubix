@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.10] — 2026-03-25
+
+### Bugfixes
+
+- Fix Dropbox (and all remotes) bisync failing immediately with exit code 1: `_supports_resync_acknowledged()` checked only `rclone help bisync` stdout, but rclone prints its help to **stderr** on some builds — detection now parses the rclone version number directly (`rclone version` always writes to stdout) and checks `>= v1.64`, with a help-text fallback that scans both stdout and stderr
+
 ## [0.3.9] — 2026-03-25
 
 ### Bugfixes
