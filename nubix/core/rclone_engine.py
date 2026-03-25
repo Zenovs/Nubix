@@ -278,12 +278,12 @@ class RcloneEngine(QObject):
         except Exception:
             return False
 
-        # rclone bisync stores listing files as {safe_p1}--{safe_p2}.path1.lst
-        # where safe = replace /\: with _ and strip leading/trailing _.
-        p2_safe = re.sub(r"[/\\:]", "_", f"{job.remote_id}:{job.remote_path}").strip("_")
+        # rclone bisync stores listing files as {safe_p1}..{safe_p2}.path1.lst
+        # where safe = replace /\: with _ and strip only leading _.
+        p2_safe = re.sub(r"[/\\:]", "_", f"{job.remote_id}:{job.remote_path}").lstrip("_")
         bisync_cache = Path.home() / ".cache" / "rclone" / "bisync"
 
-        if not bisync_cache.exists() or not any(bisync_cache.rglob(f"*--{p2_safe}.path1.lst")):
+        if not bisync_cache.exists() or not any(bisync_cache.rglob(f"*..{p2_safe}.path1.lst")):
             logger.info("rclone bisync listing missing for %s — forcing --resync", job.remote_id)
             self._reset_bisync_initialized(job.remote_id)
             return False
@@ -355,6 +355,26 @@ class RcloneEngine(QObject):
         except Exception as e:
             logger.warning("Could not reset bisync state: %s", e)
 
+    def _clear_bisync_lock(self, job: SyncJob) -> None:
+        """Delete a stale bisync lock file if one exists.
+
+        rclone bisync creates a lock file at the start of each run and removes it
+        when done.  If the process is killed mid-run the lock file remains and
+        prevents every subsequent run from starting (exit code 1).
+
+        Lock file naming: {safe_p1}..{safe_p2}.lck
+        safe = replace /\\: with _ then strip leading _.
+        """
+        p1_safe = re.sub(r"[/\\:]", "_", str(job.local_path)).lstrip("_")
+        p2_safe = re.sub(r"[/\\:]", "_", f"{job.remote_id}:{job.remote_path}").lstrip("_")
+        lock_file = Path.home() / ".cache" / "rclone" / "bisync" / f"{p1_safe}..{p2_safe}.lck"
+        if lock_file.exists():
+            try:
+                lock_file.unlink()
+                logger.info("Removed stale bisync lock file for %s", job.remote_id)
+            except OSError as e:
+                logger.warning("Could not remove bisync lock file %s: %s", lock_file, e)
+
     # ------------------------------------------------------------------
 
     def _remote_in_config(self, remote_id: str) -> bool:
@@ -395,6 +415,9 @@ class RcloneEngine(QObject):
             raise OSError(
                 f"Local sync directory does not exist and could not be created: {job.local_path}"
             )
+
+        # Remove any stale lock file left by a previously killed bisync run.
+        self._clear_bisync_lock(job)
 
         # Check that the remote is actually configured — gives a clear error instead
         # of rclone's cryptic "error listing: directory not found".

@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = "Nubix"
 APP_ID = "com.nubix.app"
-APP_VERSION = "0.3.12"
+APP_VERSION = "0.3.13"
 
 # Directories
 CONFIG_DIR = Path.home() / ".config" / "nubix"

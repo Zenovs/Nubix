@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.13] — 2026-03-25
+
+### Bugfixes
+
+- Fix Dropbox (and all remotes) bisync failing with "prior lock file found": a stale `.lck` file left by a previously killed/crashed bisync run blocked every subsequent sync — Nubix now deletes the lock file automatically before each sync start
+- Fix bisync listing-file check using wrong separator (`--` instead of `..`) and stripping trailing `_` — rclone's actual naming convention is `{p1}..{p2}.path1.lst` with only leading `_` stripped; the wrong pattern caused the listing-file check to always miss existing files
+
 ## [0.3.12] — 2026-03-25
 
 ### Changes
