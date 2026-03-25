@@ -339,6 +339,20 @@ class RcloneEngine(QObject):
         except OSError as e:
             logger.warning("Could not create local sync directory %s: %s", job.local_path, e)
         if not job.local_path.exists():
+            # Check whether the failure is due to a missing mount point (external drive).
+            # Walk up to find the first ancestor that does not exist.
+            missing = job.local_path
+            for parent in job.local_path.parents:
+                if not parent.exists():
+                    missing = parent
+                else:
+                    break
+            if str(missing).startswith("/media/") or str(missing).startswith("/mnt/"):
+                raise OSError(
+                    f"Sync path not accessible: {job.local_path}\n"
+                    f"The drive or mount point '{missing}' is not mounted. "
+                    f"Please plug in the drive and try again, or change the sync path in Settings."
+                )
             raise OSError(
                 f"Local sync directory does not exist and could not be created: {job.local_path}"
             )
