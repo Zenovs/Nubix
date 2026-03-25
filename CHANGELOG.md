@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.6] — 2026-03-25
+
+### Bugfixes
+
+- Fix Dropbox (and all remotes) failing immediately on resync: rclone ≥ 1.64 requires `--resync-acknowledged` alongside `--resync` or it exits with code 1 without syncing anything — Nubix now detects whether the installed rclone supports this flag (via `rclone help bisync`) and adds it automatically
+- Fix Google Drive "error listing: directory not found": Nubix now creates the local sync directory before starting bisync so rclone always finds a valid path1
+- Fix Lint: removed `@staticmethod` helper that caused black to want to reformat the file
+
 ## [0.3.5] — 2026-03-24
 
 ### Bugfixes
