@@ -53,6 +53,10 @@ class _ReaderThread(QThread):
 # It means --resync is required to rebuild the baseline.
 _BISYNC_MISSING_LISTINGS = "cannot find prior Path1 or Path2 listings"
 
+# rclone ≥ 1.64 outputs this when --resync is used without --resync-acknowledged.
+# It appears at NOTICE level so parse_error_line() misses it — check the raw line.
+_BISYNC_NEEDS_ACK = "resync-acknowledged"
+
 
 class RcloneProcess(QObject):
     """
@@ -71,6 +75,7 @@ class RcloneProcess(QObject):
     error_occurred = Signal(str)  # human-readable error
     finished = Signal(int)  # exit code
     resync_required = Signal()  # bisync listing files are missing
+    resync_ack_required = Signal()  # rclone needs --resync-acknowledged (v1.64+)
 
     def __init__(self, process: subprocess.Popen, job_id: str, parent: QObject | None = None):
         super().__init__(parent)
@@ -103,6 +108,12 @@ class RcloneProcess(QObject):
         if _BISYNC_MISSING_LISTINGS in line:
             logger.warning("Bisync listing files missing — resync required: %s", self.job_id)
             self.resync_required.emit()
+
+        # rclone ≥ 1.64 outputs a NOTICE (not ERROR) when --resync-acknowledged is
+        # missing — parse_error_line() misses NOTICE level, so check the raw line.
+        if _BISYNC_NEEDS_ACK in line:
+            logger.info("rclone requires --resync-acknowledged — will add it on next run")
+            self.resync_ack_required.emit()
 
         err = parse_error_line(line)
         if err:
@@ -290,8 +301,18 @@ class RcloneEngine(QObject):
                 )
                 m = re.search(r"rclone v(\d+)\.(\d+)", result.stdout)
                 if m:
-                    self._resync_ack = (int(m.group(1)), int(m.group(2))) >= (1, 64)
+                    major, minor = int(m.group(1)), int(m.group(2))
+                    self._resync_ack = (major, minor) >= (1, 64)
+                    logger.debug(
+                        "rclone version %d.%d — --resync-acknowledged supported: %s",
+                        major,
+                        minor,
+                        self._resync_ack,
+                    )
                 else:
+                    logger.debug(
+                        "Could not parse rclone version from: %r", result.stdout[:80]
+                    )
                     # Fallback: scan both stdout and stderr of 'help bisync'
                     h = subprocess.run(
                         [self._binary, "help", "bisync"],
@@ -394,6 +415,10 @@ class RcloneEngine(QObject):
         # in the rclone output — this way the very next sync attempt will use --resync
         # without waiting for the process to finish first.
         rclone_proc.resync_required.connect(lambda r=rid: self._reset_bisync_initialized(r))
+
+        # If rclone tells us --resync-acknowledged is required, cache that so the
+        # very next sync attempt adds the flag automatically.
+        rclone_proc.resync_ack_required.connect(lambda: setattr(self, "_resync_ack", True))
 
         def _on_bisync_finished(code: int, remote_id: str = rid) -> None:
             if code == 0:

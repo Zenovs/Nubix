@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.11] — 2026-03-25
+
+### Bugfixes
+
+- Fix Dropbox bisync failing every run with exit code 1: rclone ≥ 1.64 outputs the `--resync-acknowledged` requirement at **NOTICE** level (not ERROR), which `parse_error_line()` silently dropped — the engine now watches the raw stderr stream for `"resync-acknowledged"` and automatically sets the flag for the next run, the same way it already handles missing listing files
+
 ## [0.3.10] — 2026-03-25
 
 ### Bugfixes
