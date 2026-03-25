@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.9] — 2026-03-25
+
+### Bugfixes
+
+- Fix removing a cloud connection doing nothing: `remove_remote` now also deletes the remote from rclone's config file (`rclone.conf`) — previously OAuth tokens and config stayed behind
+- Fix scheduler not cancelled after removing a connection: `remote_removed` now removes the scheduled job so the deleted remote is never triggered again
+- Fix running sync not stopped when removing a connection: the active sync job is now stopped before the remote is deleted
+
 ## [0.3.8] — 2026-03-25
 
 ### Bugfixes

@@ -69,8 +69,9 @@ class NubixApp:
             self._scheduler.trigger_start.connect(self._on_scheduler_trigger_start)
             self._scheduler.trigger_stop.connect(self._sync_manager.stop_job)
 
-        # Keep scheduler in sync when remotes are updated via settings
+        # Keep scheduler in sync when remotes are updated or removed via settings
         self._registry.remote_updated.connect(self._on_remote_updated)
+        self._registry.remote_removed.connect(self._on_remote_removed)
         self._updater = Updater()
 
         qt_app.aboutToQuit.connect(self._shutdown)
@@ -135,6 +136,14 @@ class NubixApp:
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
+
+    def _on_remote_removed(self, remote_id: str):
+        """Clean up all subsystems when a remote is deleted."""
+        if self._sync_manager:
+            self._sync_manager.stop_job(remote_id)
+        self._scheduler.remove_job(remote_id)
+        if self._engine:
+            self._engine.delete_remote(remote_id)
 
     def _on_remote_updated(self, rc):
         """Refresh scheduler when a remote's schedule settings change."""
