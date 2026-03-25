@@ -310,9 +310,7 @@ class RcloneEngine(QObject):
                         self._resync_ack,
                     )
                 else:
-                    logger.debug(
-                        "Could not parse rclone version from: %r", result.stdout[:80]
-                    )
+                    logger.debug("Could not parse rclone version from: %r", result.stdout[:80])
                     # Fallback: scan both stdout and stderr of 'help bisync'
                     h = subprocess.run(
                         [self._binary, "help", "bisync"],
