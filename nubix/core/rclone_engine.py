@@ -101,8 +101,6 @@ class RcloneProcess(QObject):
             self.progress_updated.emit(stats)
             if stats.current_file:
                 self.file_transferred.emit(stats.current_file)
-        else:
-            logger.debug("rclone stdout [%s]: %s", self.job_id, line)
 
     def _on_stderr(self, line: str):
         # Detect the specific bisync "listing files missing" critical error immediately
@@ -126,8 +124,10 @@ class RcloneProcess(QObject):
             if stats:
                 self.progress_updated.emit(stats)
             else:
-                # Log unrecognised stderr lines so failures are visible in the log
-                logger.debug("rclone stderr [%s]: %s", self.job_id, line)
+                # Log plain-text (non-JSON) stderr lines — these are unusual and
+                # often indicate errors that the JSON parser missed.
+                if not line.startswith("{"):
+                    logger.debug("rclone stderr [%s]: %s", self.job_id, line)
 
     def _on_reader_done(self):
         self._readers_done += 1

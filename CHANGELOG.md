@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.14] — 2026-03-26
+
+### Changes
+
+- Reduce log noise: JSON rclone output lines (normal bisync operation) are no longer logged at DEBUG level — only unexpected plain-text stderr lines are kept, which are the ones that matter for diagnosing failures
+
 ## [0.3.13] — 2026-03-25
 
 ### Bugfixes
