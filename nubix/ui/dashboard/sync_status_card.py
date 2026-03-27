@@ -20,11 +20,14 @@ from nubix.core.sync_job import JobStatus, TransferStats
 from nubix.ui.widgets.animated_spinner import AnimatedSpinner
 from nubix.ui.widgets.status_badge import StatusBadge
 
-_PROVIDER_ICONS = {
-    "gdrive": "🟡",
-    "dropbox": "🔵",
-    "nextcloud": "☁",
-}
+
+def _provider_icon(provider_type: str) -> str:
+    """Return the icon for a provider type by looking it up in the registry."""
+    try:
+        from nubix.providers import get_provider
+        return get_provider(provider_type).icon
+    except Exception:
+        return "☁"
 
 
 def _format_bytes(b: int) -> str:
@@ -71,7 +74,7 @@ class SyncStatusCard(QFrame):
         name_col = QVBoxLayout()
         name_col.setSpacing(3)
 
-        provider_icon = _PROVIDER_ICONS.get(self.remote.provider_type, "☁")
+        provider_icon = _provider_icon(self.remote.provider_type)
         self._name_label = QLabel(f"{provider_icon}  {self.remote.display_name}")
         self._name_label.setStyleSheet(
             "color: #E2E2F0; font-size: 14px; font-weight: 700; background: transparent;"

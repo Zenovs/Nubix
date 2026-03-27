@@ -61,7 +61,7 @@ class GenericProvider(BaseProvider):
 _ALL: list[tuple[str, str, str, AuthType]] = [
     # ── Google ──
     ("drive", "Google Drive", "🟡", AuthType.OAUTH2),
-    ("google photos", "Google Photos", "🖼", AuthType.OAUTH2),
+    ("googlephotos", "Google Photos", "🖼", AuthType.OAUTH2),
     ("gcs", "Google Cloud Storage", "🔷", AuthType.OAUTH2),
     # ── Microsoft ──
     ("onedrive", "Microsoft OneDrive", "🔵", AuthType.OAUTH2),

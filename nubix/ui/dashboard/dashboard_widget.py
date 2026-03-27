@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -24,6 +24,8 @@ from nubix.ui.dashboard.transfer_rate_widget import TransferRateWidget
 
 class DashboardWidget(QWidget):
     """Top-level dashboard containing all remote cards."""
+
+    remote_settings_requested = Signal(str)  # remote_id
 
     def __init__(self, registry: RemoteRegistry, sync_manager: SyncManager, parent=None):
         super().__init__(parent)
@@ -213,5 +215,4 @@ class DashboardWidget(QWidget):
             self._sync.pause_job(job_id)
 
     def _open_remote_settings(self, remote_id: str):
-        # Emitted to the main window which opens the settings dialog
-        pass
+        self.remote_settings_requested.emit(remote_id)

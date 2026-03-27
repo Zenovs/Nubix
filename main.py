@@ -16,10 +16,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 def main() -> int:
     """Application entry point."""
     from PySide6.QtWidgets import QApplication
+    from nubix.constants import APP_VERSION
 
     app = QApplication(sys.argv)
     app.setApplicationName("Nubix")
-    app.setApplicationVersion("0.2.19")
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("Nubix")
     app.setQuitOnLastWindowClosed(False)  # Keep running in system tray
 

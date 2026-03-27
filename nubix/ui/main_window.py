@@ -146,7 +146,8 @@ class MainWindow(QMainWindow):
         )
         sub_row.addStretch()
         sub_row.addWidget(sub_lbl)
-        ver_lbl = QLabel("v0.2.19")
+        from nubix.constants import APP_VERSION
+        ver_lbl = QLabel(f"v{APP_VERSION}")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.4); background: transparent; font-size: 9px;"
         )
@@ -195,6 +196,7 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         self._sync.any_job_active.connect(self._on_any_active)
         self._sync.job_failed.connect(self._on_job_failed)
+        self._dashboard.remote_settings_requested.connect(self._open_connections_settings)
 
     # ------------------------------------------------------------------
     # Public API
@@ -206,7 +208,7 @@ class MainWindow(QMainWindow):
         wizard = SetupWizard(self._registry, self._vault, self._engine, self._sync, self)
         wizard.exec()
 
-    def open_settings(self):
+    def open_settings(self, tab: int = 0):
         from nubix.ui.settings.settings_dialog import SettingsDialog
 
         dlg = SettingsDialog(
@@ -217,7 +219,11 @@ class MainWindow(QMainWindow):
             self._updater,
             self,
         )
+        dlg._tabs.setCurrentIndex(tab)
         dlg.exec()
+
+    def _open_connections_settings(self, remote_id: str = ""):
+        self.open_settings(tab=3)  # "☁  Connections" is tab index 3
 
     # ------------------------------------------------------------------
     # Slots

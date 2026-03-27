@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QMetaObject, Q_ARG, Slot
-from PySide6.QtGui import QColor, QTextCursor, QFont
+from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor, QFont
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -17,11 +17,11 @@ from PySide6.QtWidgets import (
 )
 
 _LEVEL_COLORS = {
-    logging.DEBUG: "#888888",
-    logging.INFO: "#333333",
-    logging.WARNING: "#F57C00",
-    logging.ERROR: "#D32F2F",
-    logging.CRITICAL: "#B71C1C",
+    logging.DEBUG: "#6B6B8A",
+    logging.INFO: "#C8C8E0",
+    logging.WARNING: "#FB923C",
+    logging.ERROR: "#F87171",
+    logging.CRITICAL: "#FF4444",
 }
 
 
@@ -86,11 +86,12 @@ class LogViewer(QWidget):
 
     @Slot(str, int)
     def _append_line(self, msg: str, level: int):
-        color = _LEVEL_COLORS.get(level, "#333")
+        color = _LEVEL_COLORS.get(level, "#C8C8E0")
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color))
         cursor = self._text.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
-        self._text.setTextCursor(cursor)
-        self._text.appendPlainText(msg)
+        cursor.insertText(msg + "\n", fmt)
         if self._auto_scroll:
             self._text.verticalScrollBar().setValue(self._text.verticalScrollBar().maximum())
 
