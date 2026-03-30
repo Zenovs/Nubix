@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from nubix.constants import WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, SIDEBAR_WIDTH
+from nubix.constants import APP_VERSION, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, SIDEBAR_WIDTH
 from nubix.core.bandwidth_controller import BandwidthController
 from nubix.core.config_manager import ConfigManager
 from nubix.core.credential_vault import CredentialVault
@@ -146,7 +146,6 @@ class MainWindow(QMainWindow):
         )
         sub_row.addStretch()
         sub_row.addWidget(sub_lbl)
-        from nubix.constants import APP_VERSION
         ver_lbl = QLabel(f"v{APP_VERSION}")
         ver_lbl.setStyleSheet(
             "color: rgba(255,255,255,0.4); background: transparent; font-size: 9px;"

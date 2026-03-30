@@ -25,6 +25,7 @@ def _provider_icon(provider_type: str) -> str:
     """Return the icon for a provider type by looking it up in the registry."""
     try:
         from nubix.providers import get_provider
+
         return get_provider(provider_type).icon
     except Exception:
         return "☁"
