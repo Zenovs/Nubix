@@ -126,9 +126,10 @@ class _RcloneAuthThread(QThread):
     auth_done = Signal(str)  # emitted with token JSON once auth completes
     auth_error = Signal(str)
 
-    def __init__(self, provider_type: str, parent=None):
+    def __init__(self, provider_type: str, binary: str = "rclone", parent=None):
         super().__init__(parent)
         self._type = provider_type
+        self._binary = binary
         self._proc: subprocess.Popen | None = None
 
     def cancel(self) -> None:
@@ -148,7 +149,7 @@ class _RcloneAuthThread(QThread):
             # LD_LIBRARY_PATH (so xdg-open works inside AppImage).
             # This flag is available since rclone v1.59.
             proc = subprocess.Popen(
-                ["rclone", "authorize", self._type, "--auth-no-open-browser"],
+                [self._binary, "authorize", self._type, "--auth-no-open-browser"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -215,9 +216,10 @@ class _RcloneAuthThread(QThread):
 
 
 class AuthPage(QWizardPage):
-    def __init__(self, parent=None):
+    def __init__(self, binary: str = "rclone", parent=None):
         super().__init__(parent)
         self.setTitle("Connect Your Account")
+        self._binary = binary
         self._auth_thread: _RcloneAuthThread | None = None
         self._token: str = ""
         self._build_ui()
@@ -491,7 +493,7 @@ class AuthPage(QWizardPage):
         self._btn_open.hide()
         self._set_status("⏳  Starting authorization…", "#8888AA")
 
-        self._auth_thread = _RcloneAuthThread(provider.get_rclone_type(), self)
+        self._auth_thread = _RcloneAuthThread(provider.get_rclone_type(), self._binary, self)
         self._auth_thread.auth_url.connect(self._on_auth_url)
         self._auth_thread.auth_done.connect(self._on_auth_done)
         self._auth_thread.auth_error.connect(self._on_auth_error)

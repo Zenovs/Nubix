@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import uuid
 from pathlib import Path
 
@@ -47,7 +48,10 @@ class SetupWizard(QWizard):
         self._vault = vault
         self._engine = engine
         self._sync = sync_manager
-        self._auth_page = AuthPage()
+
+        # Pass the resolved rclone binary to AuthPage so it uses the right one
+        rclone_binary = getattr(engine, "_binary", None) or shutil.which("rclone") or "rclone"
+        self._auth_page = AuthPage(binary=rclone_binary)
 
         self.setWindowTitle("Add Cloud Connection — Nubix")
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)

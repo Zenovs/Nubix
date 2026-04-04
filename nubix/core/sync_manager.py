@@ -73,10 +73,15 @@ class SyncManager(QObject):
 
     def stop_job(self, job_id: str) -> None:
         """Stop a running job."""
-        proc = self._processes.get(job_id)
+        proc = self._processes.pop(job_id, None)
         if proc:
+            try:
+                proc.finished.disconnect()
+            except Exception:
+                pass
             proc.stop()
             self._set_status(job_id, JobStatus.IDLE)
+            self._emit_any_active()
 
     def pause_job(self, job_id: str) -> None:
         """Pause a running job (SIGSTOP)."""

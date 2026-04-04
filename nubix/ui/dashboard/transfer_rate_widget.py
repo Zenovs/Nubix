@@ -84,7 +84,7 @@ class _SparklineWidget(QWidget):
 class TransferRateWidget(QWidget):
     """Shows current download speed as text + sparkline."""
 
-    _UPDATE_INTERVAL = 5.0  # seconds between display refreshes
+    _UPDATE_INTERVAL = 1.0  # seconds between display refreshes
 
     def __init__(self, parent=None):
         super().__init__(parent)

@@ -30,6 +30,7 @@ class RemotesTab(QWidget):
         layout = QHBoxLayout(self)
 
         self._list = QListWidget()
+        self._list.currentItemChanged.connect(self._on_selection_changed)
         layout.addWidget(self._list, 1)
 
         buttons = QVBoxLayout()
@@ -38,6 +39,7 @@ class RemotesTab(QWidget):
         buttons.addWidget(self._btn_add)
 
         self._btn_remove = QPushButton("Remove")
+        self._btn_remove.setEnabled(False)  # disabled until something is selected
         self._btn_remove.clicked.connect(self._remove)
         buttons.addWidget(self._btn_remove)
 
@@ -53,6 +55,9 @@ class RemotesTab(QWidget):
         item = QListWidgetItem(f"{rc.display_name}  ({rc.local_path})")
         item.setData(Qt.ItemDataRole.UserRole, rc.remote_id)
         self._list.addItem(item)
+
+    def _on_selection_changed(self, current, previous):
+        self._btn_remove.setEnabled(current is not None)
 
     def _on_remote_added(self, rc: RemoteConfig):
         self._add_item(rc)
@@ -75,7 +80,11 @@ class RemotesTab(QWidget):
         if not item:
             return
         remote_id = item.data(Qt.ItemDataRole.UserRole)
-        rc = self._registry.get_remote(remote_id)
+        try:
+            rc = self._registry.get_remote(remote_id)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not find connection: {e}")
+            return
         reply = QMessageBox.question(
             self,
             "Remove Connection",
@@ -83,4 +92,7 @@ class RemotesTab(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self._registry.remove_remote(remote_id)
+            try:
+                self._registry.remove_remote(remote_id)
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to remove connection: {e}")

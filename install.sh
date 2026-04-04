@@ -95,6 +95,18 @@ check_pkg libxcb-randr0
 check_pkg libxcb-render-util0
 check_pkg libxcb-xinerama0
 check_pkg libxcb-cursor0
+# PySide6 Qt-Module (Debian/Ubuntu/Kali — funktioniert auf x86 und ARM)
+check_pkg python3-pyside6.qtwidgets
+check_pkg python3-pyside6.qtcore
+check_pkg python3-pyside6.qtgui
+check_pkg python3-pyside6.qtnetwork
+check_pkg python3-pyside6.qtsvg
+check_pkg python3-pyside6.qtsvgwidgets
+check_pkg python3-pyside6.qtdbus
+check_pkg python3-yaml
+check_pkg python3-cryptography
+check_pkg python3-requests
+check_pkg python3-secretstorage
 
 if [[ ${#PKGS_TO_INSTALL[@]} -gt 0 ]]; then
     info "Installiere: ${PKGS_TO_INSTALL[*]}"
@@ -171,14 +183,17 @@ else
     fi
     success "Quellcode heruntergeladen."
 
-    # Virtuelle Python-Umgebung
+    # Virtuelle Python-Umgebung mit system-site-packages
+    # PySide6 wird über apt bereitgestellt; --system-site-packages macht es im venv sichtbar.
     info "Erstelle Python-Umgebung..."
     python3 -m venv "$INSTALL_DIR/.venv" --system-site-packages
     source "$INSTALL_DIR/.venv/bin/activate"
 
-    info "Installiere Python-Abhängigkeiten (kann 1-2 Minuten dauern)..."
+    info "Installiere Python-Abhängigkeiten..."
     pip install --quiet --upgrade pip
-    pip install --quiet -r "$INSTALL_DIR/requirements.txt"
+    # PySide6 kommt von apt (x86 + ARM kompatibel) — nur restliche deps via pip
+    pip install --quiet PyYAML cryptography requests 2>/dev/null || true
+    pip install --quiet secretstorage 2>/dev/null || true
     success "Python-Abhängigkeiten installiert."
 
     # Startskript erstellen
