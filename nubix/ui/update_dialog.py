@@ -111,17 +111,14 @@ class UpdateDialog(QDialog):
             import os
             import sys
 
-            # Must exec the AppImage file itself, not sys.executable.
-            # Inside an AppImage, sys.executable points to the Python
-            # interpreter inside the OLD squashfs mount — running it would
-            # start the old version again.  $APPIMAGE is the path of the
-            # AppImage file we just replaced, so exec'ing that launches
-            # the new version.
             appimage = os.environ.get("APPIMAGE")
             if appimage:
                 os.execv(appimage, [appimage] + sys.argv[1:])
-            else:
-                # Dev / PyInstaller fallback
+            elif getattr(sys, "frozen", False):
                 os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                # Source install: re-exec python with the original main.py
+                main_py = str(__import__("pathlib").Path(sys.argv[0]).resolve())
+                os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
 
         QTimer.singleShot(400, _do_restart)

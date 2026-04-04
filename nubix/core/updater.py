@@ -1,8 +1,9 @@
 """
 Auto-updater for Nubix.
 
-Checks GitHub Releases API for a newer version, downloads the AppImage,
-replaces the current binary, and restarts the application.
+Checks GitHub Releases API for a newer version, then either:
+  - downloads the AppImage and replaces the binary (AppImage installs), or
+  - runs `git pull` to update the source tree (source/dev installs).
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -88,6 +90,38 @@ class UpdateCheckThread(QThread):
             self.check_failed.emit(str(e))
 
 
+class GitPullThread(QThread):
+    """Runs `git pull` in the Nubix source directory."""
+
+    finished = Signal()
+    failed = Signal(str)
+
+    def __init__(self, repo_dir: Path, parent=None):
+        super().__init__(parent)
+        self._repo_dir = repo_dir
+
+    def run(self):
+        try:
+            result = subprocess.run(
+                ["git", "pull", "--ff-only"],
+                cwd=self._repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                logger.info("git pull succeeded: %s", result.stdout.strip())
+                self.finished.emit()
+            else:
+                msg = (result.stderr or result.stdout).strip()
+                logger.error("git pull failed: %s", msg)
+                self.failed.emit(msg)
+        except FileNotFoundError:
+            self.failed.emit("git not found. Install it with: sudo apt install git")
+        except Exception as e:
+            self.failed.emit(str(e))
+
+
 class DownloadThread(QThread):
     """Downloads a file from a URL with progress reporting."""
 
@@ -138,6 +172,7 @@ class Updater(QObject):
         super().__init__(parent)
         self._check_thread: Optional[UpdateCheckThread] = None
         self._download_thread: Optional[DownloadThread] = None
+        self._git_thread: Optional[GitPullThread] = None
         self._pending_release: Optional[ReleaseInfo] = None
 
     # ------------------------------------------------------------------
@@ -155,16 +190,36 @@ class Updater(QObject):
         self._check_thread.start()
 
     def download_and_apply(self, release: ReleaseInfo) -> None:
-        """Download the AppImage for `release` and replace the current binary."""
+        """Update Nubix to `release`.
+
+        Strategy:
+        1. AppImage install  → download new AppImage, replace binary, restart.
+        2. Source install    → git pull in the repo directory, restart.
+        """
+        # ── Source install: use git pull ──────────────────────────────────────
+        repo_dir = self._source_repo_dir()
+        if repo_dir is not None:
+            logger.info("Source install detected — running git pull in %s", repo_dir)
+            self._git_thread = GitPullThread(repo_dir, self)
+            self._git_thread.finished.connect(self._on_git_pull_done)
+            self._git_thread.failed.connect(self.update_failed)
+            self._git_thread.start()
+            return
+
+        # ── AppImage install: download new binary ─────────────────────────────
         url = release.get_appimage_url()
         if not url:
-            self.update_failed.emit("No AppImage asset found in this release.")
+            self.update_failed.emit(
+                "No AppImage asset found in this release.\n"
+                "Update manually: https://github.com/Zenovs/Nubix/releases"
+            )
             return
 
         current_path = self._current_binary()
         if current_path is None:
             self.update_failed.emit(
-                "Cannot determine current binary path. " "Please download the update manually."
+                "Cannot determine current binary path. "
+                "Please download the update manually."
             )
             return
 
@@ -176,6 +231,11 @@ class Updater(QObject):
         )
         self._download_thread.failed.connect(self.update_failed)
         self._download_thread.start()
+
+    def _on_git_pull_done(self) -> None:
+        logger.info("git pull complete — signalling restart")
+        self.download_complete.emit()
+        self.restart_required.emit()
 
     @property
     def current_version(self) -> str:
@@ -189,19 +249,27 @@ class Updater(QObject):
         self._pending_release = info
         self.update_available.emit(info)
 
+    def _source_repo_dir(self) -> Optional[Path]:
+        """Return the git repo root if Nubix is running from source, else None."""
+        # Skip if running as AppImage or PyInstaller bundle
+        if os.environ.get("APPIMAGE") or getattr(sys, "frozen", False):
+            return None
+        # Walk up from this file to find .git directory
+        candidate = Path(__file__).resolve().parent
+        for _ in range(6):
+            if (candidate / ".git").exists():
+                return candidate
+            candidate = candidate.parent
+        return None
+
     def _current_binary(self) -> Optional[Path]:
         """Return the path of the running AppImage, or None if not applicable."""
-        # When running as AppImage, APPIMAGE env var is set
         appimage = os.environ.get("APPIMAGE")
         if appimage:
             return Path(appimage)
-
-        # When running directly via python (dev mode) — no binary to replace
         if getattr(sys, "frozen", False):
-            # PyInstaller bundle
             return Path(sys.executable)
-
-        return None  # Running from source — cannot self-update
+        return None
 
     def _apply_update(self, downloaded: Path, current: Path) -> None:
         try:

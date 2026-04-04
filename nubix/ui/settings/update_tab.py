@@ -142,14 +142,16 @@ class UpdateTab(QWidget):
         self._updater.download_and_apply(self._pending_release)
 
     def _restart(self):
-        # When running as AppImage, APPIMAGE points to the file on disk (already
-        # replaced by the updater). sys.executable points to the Python binary
-        # inside the OLD squashfs mount — exec'ing that would relaunch the old version.
         appimage = os.environ.get("APPIMAGE")
         if appimage:
             os.execv(appimage, [appimage])
-        else:
+        elif getattr(sys, "frozen", False):
             os.execv(sys.executable, [sys.executable] + sys.argv)
+        else:
+            # Source install: re-exec python with the original main.py
+            import pathlib
+            main_py = str(pathlib.Path(sys.argv[0]).resolve())
+            os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
 
     # ── Updater signal handlers ────────────────────────────────────────────────
 
