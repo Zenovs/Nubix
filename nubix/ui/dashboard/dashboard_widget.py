@@ -14,8 +14,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nubix.core.mount_manager import MountManager
 from nubix.core.remote_registry import RemoteConfig, RemoteRegistry
-from nubix.core.sync_job import JobStatus, TransferStats
+from nubix.core.sync_job import JobStatus, SyncMode, TransferStats
 from nubix.core.sync_manager import SyncManager
 from nubix.ui.dashboard.progress_panel import ProgressPanel
 from nubix.ui.dashboard.sync_status_card import SyncStatusCard
@@ -27,10 +28,17 @@ class DashboardWidget(QWidget):
 
     remote_settings_requested = Signal(str)  # remote_id
 
-    def __init__(self, registry: RemoteRegistry, sync_manager: SyncManager, parent=None):
+    def __init__(
+        self,
+        registry: RemoteRegistry,
+        sync_manager: SyncManager,
+        mount_manager: MountManager | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._registry = registry
         self._sync = sync_manager
+        self._mount = mount_manager
         self._cards: dict[str, SyncStatusCard] = {}
         self._jobs: dict[str, object] = {}  # remote_id -> SyncJob
 
@@ -149,6 +157,9 @@ class DashboardWidget(QWidget):
         self._sync.progress_updated.connect(self._on_progress)
         self._sync.file_transferred.connect(self._on_file_transferred)
         self._sync.any_job_active.connect(self._btn_pause_all.setEnabled)
+        if self._mount:
+            self._mount.mount_status_changed.connect(self._on_status_changed)
+            self._mount.mount_failed.connect(lambda rid, err: self._on_mount_error(rid, err))
 
     def _load_existing_remotes(self):
         for rc in self._registry.list_remotes():
@@ -160,6 +171,8 @@ class DashboardWidget(QWidget):
         card = SyncStatusCard(rc, self)
         card.sync_requested.connect(self._start_remote)
         card.stop_requested.connect(self._sync.stop_job)
+        card.mount_requested.connect(self._start_mount)
+        card.unmount_requested.connect(self._stop_mount)
         card.settings_requested.connect(self._open_remote_settings)
         self._cards[rc.remote_id] = card
 
@@ -202,8 +215,42 @@ class DashboardWidget(QWidget):
 
     def _start_remote(self, remote_id: str):
         rc = self._registry.get_remote(remote_id)
-        job = rc.to_sync_job()
-        self._sync.start_job(job)
+        if rc.sync_mode == SyncMode.MOUNT:
+            self._start_mount(remote_id)
+        else:
+            job = rc.to_sync_job()
+            self._sync.start_job(job)
+
+    def _start_mount(self, remote_id: str):
+        if not self._mount:
+            return
+        from pathlib import Path
+
+        rc = self._registry.get_remote(remote_id)
+        mountpoint = Path(rc.local_path)
+        self._mount.mount(
+            remote_id,
+            rc.remote_path,
+            mountpoint,
+            rc.mount_cache_mode,
+            rc.mount_cache_size,
+        )
+
+    def _stop_mount(self, remote_id: str):
+        if self._mount:
+            self._mount.unmount(remote_id)
+
+    def _on_mount_error(self, remote_id: str, error: str):
+        from PySide6.QtWidgets import QMessageBox
+
+        card = self._cards.get(remote_id)
+        rc_name = card.remote.display_name if card else remote_id
+        QMessageBox.warning(
+            self,
+            "Mount Error",
+            f"Failed to mount '{rc_name}':\n\n{error}\n\n"
+            "Make sure FUSE is installed:\n  sudo apt install fuse3",
+        )
 
     def _sync_all(self):
         for rc in self._registry.list_remotes():

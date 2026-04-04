@@ -488,6 +488,51 @@ class RcloneEngine(QObject):
 
         return cmd
 
+    def start_mount(
+        self,
+        remote_id: str,
+        remote_path: str,
+        mountpoint: Path,
+        cache_mode: str = "full",
+        cache_size: str = "1G",
+    ) -> subprocess.Popen:
+        """Launch rclone mount as a foreground subprocess (caller manages its lifetime)."""
+        mountpoint.mkdir(parents=True, exist_ok=True)
+        remote_src = f"{remote_id}:{remote_path}"
+        cmd = [
+            self._binary,
+            "mount",
+            remote_src,
+            str(mountpoint),
+            "--config",
+            str(RCLONE_CONFIG_FILE),
+            "--vfs-cache-mode",
+            cache_mode,
+            "--vfs-cache-max-size",
+            cache_size,
+            "--allow-non-empty",
+            "--log-level=INFO",
+        ]
+        logger.info("Starting mount %s → %s: %s", remote_src, mountpoint, " ".join(cmd))
+        return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def unmount(self, mountpoint: Path) -> bool:
+        """Unmount a FUSE mountpoint using fusermount3 / fusermount."""
+        for binary in ("fusermount3", "fusermount"):
+            found = shutil.which(binary)
+            if not found:
+                continue
+            result = subprocess.run(
+                [found, "-u", str(mountpoint)],
+                capture_output=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                logger.info("Unmounted %s via %s", mountpoint, binary)
+                return True
+        logger.warning("Could not unmount %s — fusermount3/fusermount not found", mountpoint)
+        return False
+
     def set_bandwidth_limit(self, limit: str) -> bool:
         """Set bandwidth limit via rclone RC (requires --rc to be running)."""
         try:

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from nubix.core.remote_registry import RemoteConfig
-from nubix.core.sync_job import JobStatus, TransferStats
+from nubix.core.sync_job import JobStatus, SyncMode, TransferStats
 from nubix.ui.widgets.animated_spinner import AnimatedSpinner
 from nubix.ui.widgets.status_badge import StatusBadge
 
@@ -48,6 +48,8 @@ class SyncStatusCard(QFrame):
 
     sync_requested = Signal(str)  # remote_id
     stop_requested = Signal(str)  # remote_id
+    mount_requested = Signal(str)  # remote_id
+    unmount_requested = Signal(str)  # remote_id
     settings_requested = Signal(str)  # remote_id
 
     def __init__(self, remote: RemoteConfig, parent=None):
@@ -91,8 +93,10 @@ class SyncStatusCard(QFrame):
         self._badge = StatusBadge(JobStatus.IDLE)
         top.addWidget(self._badge)
 
-        self._btn_sync = QPushButton("▶  Sync")
-        self._btn_sync.setFixedWidth(84)
+        is_mount = self.remote.sync_mode == SyncMode.MOUNT
+        primary_label = "⏏  Mount" if is_mount else "▶  Sync"
+        self._btn_sync = QPushButton(primary_label)
+        self._btn_sync.setFixedWidth(90)
         self._btn_sync.setStyleSheet(
             "QPushButton { background: #7C5CFC; color: white; border: none;"
             " border-radius: 7px; padding: 6px 12px; font-weight: 600; font-size: 12px; }"
@@ -100,10 +104,15 @@ class SyncStatusCard(QFrame):
             "QPushButton:pressed { background: #6040E0; }"
             "QPushButton:disabled { background: #2E2E50; color: #4A4A6A; }"
         )
-        self._btn_sync.clicked.connect(lambda: self.sync_requested.emit(self.remote.remote_id))
+        if is_mount:
+            self._btn_sync.clicked.connect(lambda: self.mount_requested.emit(self.remote.remote_id))
+        else:
+            self._btn_sync.clicked.connect(lambda: self.sync_requested.emit(self.remote.remote_id))
         top.addWidget(self._btn_sync)
 
-        self._btn_stop = QPushButton("⏹")
+        stop_label = "⏏" if is_mount else "⏹"
+        stop_tip = "Unmount" if is_mount else "Stop sync"
+        self._btn_stop = QPushButton(stop_label)
         self._btn_stop.setFixedSize(34, 34)
         self._btn_stop.setEnabled(False)
         self._btn_stop.setStyleSheet(
@@ -112,8 +121,13 @@ class SyncStatusCard(QFrame):
             "QPushButton:hover { background: #F87171; color: white; }"
             "QPushButton:disabled { background: #1E1E32; color: #4A4A6A; border-color: #2E2E50; }"
         )
-        self._btn_stop.setToolTip("Stop sync")
-        self._btn_stop.clicked.connect(lambda: self.stop_requested.emit(self.remote.remote_id))
+        self._btn_stop.setToolTip(stop_tip)
+        if is_mount:
+            self._btn_stop.clicked.connect(
+                lambda: self.unmount_requested.emit(self.remote.remote_id)
+            )
+        else:
+            self._btn_stop.clicked.connect(lambda: self.stop_requested.emit(self.remote.remote_id))
         top.addWidget(self._btn_stop)
 
         self._btn_settings = QPushButton("⚙")
@@ -163,15 +177,17 @@ class SyncStatusCard(QFrame):
         self._current_status = status
         self._badge.set_status(status)
         is_syncing = status == JobStatus.SYNCING
-        self._btn_sync.setEnabled(not is_syncing)
-        self._btn_stop.setEnabled(is_syncing)
+        is_mounted = status == JobStatus.MOUNTED
+        busy = is_syncing or is_mounted
+        self._btn_sync.setEnabled(not busy)
+        self._btn_stop.setEnabled(busy)
         if is_syncing:
             self._spinner.start()
         else:
             self._spinner.stop()
         if status == JobStatus.UP_TO_DATE:
             self._progress.setValue(100)
-        if status == JobStatus.IDLE:
+        if status in (JobStatus.IDLE, JobStatus.MOUNTED):
             self._progress.setValue(0)
             self._file_label.setText("")
             self._speed_label.setText("")

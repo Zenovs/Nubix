@@ -13,6 +13,7 @@ _STATUS_STYLES = {
     JobStatus.PAUSED: ("Paused", "#FB923C", "#2A1500"),
     JobStatus.ERROR: ("Error", "#F87171", "#2A0A0A"),
     JobStatus.UP_TO_DATE: ("Up to date", "#4ADE80", "#0D2A1A"),
+    JobStatus.MOUNTED: ("Mounted", "#A78BFA", "#1A0A40"),
 }
 
 

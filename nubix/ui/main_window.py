@@ -24,6 +24,7 @@ from nubix.constants import APP_VERSION, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, SI
 from nubix.core.bandwidth_controller import BandwidthController
 from nubix.core.config_manager import ConfigManager
 from nubix.core.credential_vault import CredentialVault
+from nubix.core.mount_manager import MountManager
 from nubix.core.rclone_engine import RcloneEngine
 from nubix.core.remote_registry import RemoteRegistry
 from nubix.core.scheduler import Scheduler
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
         vault: CredentialVault,
         engine: RcloneEngine,
         updater=None,
+        mount_manager: MountManager | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -64,6 +66,7 @@ class MainWindow(QMainWindow):
         self._vault = vault
         self._engine = engine
         self._updater = updater
+        self._mount = mount_manager
 
         self.setWindowTitle("Nubix — Cloud Sync")
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
@@ -86,7 +89,7 @@ class MainWindow(QMainWindow):
         # Page stack — must be created before sidebar (sidebar connects to it)
         self._stack = QStackedWidget()
 
-        self._dashboard = DashboardWidget(self._registry, self._sync)
+        self._dashboard = DashboardWidget(self._registry, self._sync, self._mount)
         self._stack.addWidget(self._dashboard)
 
         self._log_viewer = LogViewer()

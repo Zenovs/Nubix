@@ -14,6 +14,7 @@ class SyncMode(str, Enum):
     FULL = "full"
     SELECTIVE = "selective"
     BIDIRECTIONAL = "bidirectional"
+    MOUNT = "mount"  # rclone VFS mount — on-demand download, no local copy
 
 
 class JobStatus(str, Enum):
@@ -22,6 +23,7 @@ class JobStatus(str, Enum):
     PAUSED = "paused"
     ERROR = "error"
     UP_TO_DATE = "up_to_date"
+    MOUNTED = "mounted"  # rclone mount is active
 
 
 @dataclass
@@ -67,6 +69,8 @@ class SyncJob:
     bandwidth_limit: str = "0"
     is_scheduled: bool = False
     schedule_windows: list[TimeWindow] = field(default_factory=list)
+    mount_cache_mode: str = "full"
+    mount_cache_size: str = "1G"
     job_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def to_dict(self) -> dict:

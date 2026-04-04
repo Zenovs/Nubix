@@ -29,6 +29,11 @@ _MODES = [
         "Bidirectional Sync",
         "Same as Full Sync with advanced conflict resolution options.",
     ),
+    (
+        SyncMode.MOUNT,
+        "Mount (On-Demand)",
+        "Files appear in your file manager but are only downloaded when you open them. Saves disk space — no local copy kept.",
+    ),
 ]
 
 

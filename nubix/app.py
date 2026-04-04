@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from nubix.core.bandwidth_controller import BandwidthController
 from nubix.core.config_manager import ConfigManager
 from nubix.core.credential_vault import CredentialVault
+from nubix.core.mount_manager import MountManager
 from nubix.core.rclone_engine import RcloneEngine
 from nubix.core.remote_registry import RemoteRegistry
 from nubix.core.scheduler import Scheduler
@@ -61,8 +62,10 @@ class NubixApp:
 
         if self._engine:
             self._sync_manager = SyncManager(self._engine, bandwidth=self._bandwidth)
+            self._mount_manager = MountManager(self._engine)
         else:
             self._sync_manager = None
+            self._mount_manager = None
 
         self._scheduler = Scheduler()
         if self._sync_manager:
@@ -93,6 +96,7 @@ class NubixApp:
             vault=self._vault,
             engine=self._engine or _NullEngine(),
             updater=self._updater,
+            mount_manager=self._mount_manager,
         )
 
         # System tray
@@ -139,6 +143,8 @@ class NubixApp:
 
     def _on_remote_removed(self, remote_id: str):
         """Clean up all subsystems when a remote is deleted."""
+        if self._mount_manager:
+            self._mount_manager.unmount(remote_id)
         if self._sync_manager:
             self._sync_manager.stop_job(remote_id)
         self._scheduler.remove_job(remote_id)
@@ -174,6 +180,8 @@ class NubixApp:
     def _shutdown(self):
         logger.info("Nubix shutting down…")
         self._scheduler.stop()
+        if self._mount_manager:
+            self._mount_manager.unmount_all()
         if self._sync_manager:
             self._sync_manager.stop_all()
         if self._window:
