@@ -50,6 +50,8 @@ class RemotesTab(QWidget):
         self._list.clear()
         for rc in self._registry.list_remotes():
             self._add_item(rc)
+        if self._list.count() > 0:
+            self._list.setCurrentRow(0)
 
     def _add_item(self, rc: RemoteConfig):
         item = QListWidgetItem(f"{rc.display_name}  ({rc.local_path})")
