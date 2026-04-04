@@ -218,8 +218,7 @@ class Updater(QObject):
         current_path = self._current_binary()
         if current_path is None:
             self.update_failed.emit(
-                "Cannot determine current binary path. "
-                "Please download the update manually."
+                "Cannot determine current binary path. " "Please download the update manually."
             )
             return
 

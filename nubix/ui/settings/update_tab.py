@@ -150,6 +150,7 @@ class UpdateTab(QWidget):
         else:
             # Source install: re-exec python with the original main.py
             import pathlib
+
             main_py = str(pathlib.Path(sys.argv[0]).resolve())
             os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
 
