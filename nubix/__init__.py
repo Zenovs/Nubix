@@ -1,5 +1,5 @@
 """Nubix - Cloud Sync Manager for Ubuntu."""
 
-__version__ = "0.3.17"
+__version__ = "0.3.18"
 __author__ = "Nubix Contributors"
 __license__ = "Proprietary"

@@ -291,39 +291,22 @@ class RcloneEngine(QObject):
         return True
 
     def _supports_resync_acknowledged(self) -> bool:
-        """Return True if this rclone supports --resync-acknowledged (v1.64+).
+        """Return True if this rclone build supports --resync-acknowledged.
 
-        Detects via version number — more reliable than help-text parsing because
-        rclone prints 'help bisync' to stderr on some builds/platforms.
+        Uses help-text probing — the only reliable method because distro
+        packages (e.g. Kali/Debian) may report a high version number while
+        still omitting flags that upstream added in that release.
         """
         if self._resync_ack is None:
             try:
-                result = subprocess.run(
-                    [self._binary, "version"],
+                h = subprocess.run(
+                    [self._binary, "help", "bisync"],
                     capture_output=True,
                     text=True,
                     timeout=10,
                 )
-                m = re.search(r"rclone v(\d+)\.(\d+)", result.stdout)
-                if m:
-                    major, minor = int(m.group(1)), int(m.group(2))
-                    self._resync_ack = (major, minor) >= (1, 64)
-                    logger.debug(
-                        "rclone version %d.%d — --resync-acknowledged supported: %s",
-                        major,
-                        minor,
-                        self._resync_ack,
-                    )
-                else:
-                    logger.debug("Could not parse rclone version from: %r", result.stdout[:80])
-                    # Fallback: scan both stdout and stderr of 'help bisync'
-                    h = subprocess.run(
-                        [self._binary, "help", "bisync"],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    self._resync_ack = "--resync-acknowledged" in (h.stdout + h.stderr)
+                self._resync_ack = "--resync-acknowledged" in (h.stdout + h.stderr)
+                logger.debug("--resync-acknowledged supported: %s", self._resync_ack)
             except Exception:
                 self._resync_ack = False
         return bool(self._resync_ack)
