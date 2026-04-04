@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from nubix import __version__
+
 APP_NAME = "Nubix"
 APP_ID = "com.nubix.app"
-APP_VERSION = "0.3.19"
+APP_VERSION = __version__
 
 # Directories
 CONFIG_DIR = Path.home() / ".config" / "nubix"
