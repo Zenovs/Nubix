@@ -93,8 +93,9 @@ class UpdateCheckThread(QThread):
 class GitPullThread(QThread):
     """Runs `git pull` in the Nubix source directory."""
 
-    finished = Signal()
-    failed = Signal(str)
+    # Use pull_done instead of finished to avoid shadowing QThread.finished
+    pull_done = Signal()
+    pull_failed = Signal(str)
 
     def __init__(self, repo_dir: Path, parent=None):
         super().__init__(parent)
@@ -111,15 +112,15 @@ class GitPullThread(QThread):
             )
             if result.returncode == 0:
                 logger.info("git pull succeeded: %s", result.stdout.strip())
-                self.finished.emit()
+                self.pull_done.emit()
             else:
                 msg = (result.stderr or result.stdout).strip()
                 logger.error("git pull failed: %s", msg)
-                self.failed.emit(msg)
+                self.pull_failed.emit(msg)
         except FileNotFoundError:
-            self.failed.emit("git not found. Install it with: sudo apt install git")
+            self.pull_failed.emit("git not found. Install it with: sudo apt install git")
         except Exception as e:
-            self.failed.emit(str(e))
+            self.pull_failed.emit(str(e))
 
 
 class DownloadThread(QThread):
@@ -201,8 +202,8 @@ class Updater(QObject):
         if repo_dir is not None:
             logger.info("Source install detected — running git pull in %s", repo_dir)
             self._git_thread = GitPullThread(repo_dir, self)
-            self._git_thread.finished.connect(self._on_git_pull_done)
-            self._git_thread.failed.connect(self.update_failed)
+            self._git_thread.pull_done.connect(self._on_git_pull_done)
+            self._git_thread.pull_failed.connect(self.update_failed)
             self._git_thread.start()
             return
 
