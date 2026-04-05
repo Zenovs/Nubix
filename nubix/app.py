@@ -133,6 +133,21 @@ class NubixApp:
         for rc in self._registry.list_remotes():
             self._register_watcher(rc)
 
+        # Auto-mount all enabled mount-mode remotes
+        if self._mount_manager:
+            from nubix.core.sync_job import SyncMode
+            from pathlib import Path
+
+            for rc in self._registry.list_remotes():
+                if rc.is_enabled and rc.sync_mode == SyncMode.MOUNT:
+                    self._mount_manager.mount(
+                        rc.remote_id,
+                        rc.remote_path,
+                        Path(rc.local_path),
+                        rc.mount_cache_mode,
+                        rc.mount_cache_size,
+                    )
+
         # Check for updates after a short delay (don't block startup)
         from PySide6.QtCore import QTimer
 
