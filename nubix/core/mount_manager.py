@@ -61,6 +61,13 @@ class MountManager(QObject):
         if remote_id in self._mounts:
             logger.debug("Mount already active for %s", remote_id)
             return
+
+        # Clean up any stale FUSE mount left by a previous crashed process.
+        # "Transport endpoint is not connected" occurs when the mountpoint
+        # directory exists but the backing rclone process is gone.
+        # fusermount3 -u -z performs a lazy unmount that handles this case.
+        self._cleanup_stale_mount(mountpoint)
+
         try:
             proc = self._engine.start_mount(
                 remote_id, remote_path, mountpoint, cache_mode, cache_size
@@ -120,6 +127,29 @@ class MountManager(QObject):
         if exit_code != 0:
             self.mount_failed.emit(remote_id, f"rclone mount exited with code {exit_code}")
         self._emit_status(remote_id, JobStatus.IDLE)
+
+    def _cleanup_stale_mount(self, mountpoint: Path) -> None:
+        """Remove a stale/zombie FUSE mount if present.
+
+        A stale mount shows as "Transport endpoint is not connected" when
+        the rclone process that backed it has died.  A lazy unmount (-z)
+        detaches the mountpoint immediately even if the process is gone.
+        """
+        import shutil
+
+        for binary in ("fusermount3", "fusermount"):
+            found = shutil.which(binary)
+            if not found:
+                continue
+            result = subprocess.run(
+                [found, "-u", "-z", str(mountpoint)],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                logger.info("Cleaned up stale mount at %s", mountpoint)
+            # returncode != 0 just means nothing was mounted there — that's fine
+            return  # only need one tool
 
     def _emit_status(self, remote_id: str, status: JobStatus) -> None:
         self.mount_status_changed.emit(remote_id, status.value)
