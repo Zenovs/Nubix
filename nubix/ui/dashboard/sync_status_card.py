@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -19,6 +19,9 @@ from nubix.core.remote_registry import RemoteConfig
 from nubix.core.sync_job import JobStatus, SyncMode, TransferStats
 from nubix.ui.widgets.animated_spinner import AnimatedSpinner
 from nubix.ui.widgets.status_badge import StatusBadge
+
+# rclone VFS cache root
+_VFS_CACHE_ROOT = Path.home() / ".cache" / "rclone" / "vfs"
 
 
 def _provider_icon(provider_type: str) -> str:
@@ -43,6 +46,45 @@ def _format_speed(bps: float) -> str:
     return _format_bytes(int(bps)) + "/s"
 
 
+def _dir_size(path: Path) -> int:
+    """Return total bytes of all files under *path*. Returns 0 if not found."""
+    total = 0
+    try:
+        for f in path.rglob("*"):
+            if f.is_file():
+                try:
+                    total += f.stat().st_size
+                except OSError:
+                    pass
+    except Exception:
+        pass
+    return total
+
+
+class _CacheSizeThread(QThread):
+    """Calculates VFS cache size for one remote in the background."""
+
+    result = Signal(int)  # bytes used
+
+    def __init__(self, remote_id: str, parent=None):
+        super().__init__(parent)
+        self._remote_id = remote_id
+
+    def run(self):
+        # rclone stores the VFS cache under a directory that starts with
+        # "<remote_id>" inside ~/.cache/rclone/vfs/.  Scan all subdirs that
+        # start with the remote name and sum their sizes.
+        total = 0
+        try:
+            if _VFS_CACHE_ROOT.exists():
+                for entry in _VFS_CACHE_ROOT.iterdir():
+                    if entry.is_dir() and entry.name.startswith(self._remote_id):
+                        total += _dir_size(entry)
+        except Exception:
+            pass
+        self.result.emit(total)
+
+
 class SyncStatusCard(QFrame):
     """Dashboard card for one configured remote."""
 
@@ -56,6 +98,10 @@ class SyncStatusCard(QFrame):
         super().__init__(parent)
         self.remote = remote
         self._current_status = JobStatus.IDLE
+        self._cache_thread: _CacheSizeThread | None = None
+        self._cache_timer = QTimer(self)
+        self._cache_timer.setInterval(10_000)  # refresh every 10 s
+        self._cache_timer.timeout.connect(self._refresh_cache_size)
         self.setObjectName("SyncStatusCard")
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setMinimumHeight(120)
@@ -160,18 +206,48 @@ class SyncStatusCard(QFrame):
         )
         root.addWidget(self._progress)
 
-        # ── Bottom row: current file + speed ──
+        # ── Bottom row: current file / cache info + speed ──
         bottom = QHBoxLayout()
+        bottom.setSpacing(8)
+
         self._file_label = QLabel("")
         self._file_label.setStyleSheet("color: #8888AA; font-size: 11px; background: transparent;")
         self._file_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        bottom.addWidget(self._file_label, 1)
+
+        # Cache row — only relevant for mount mode
+        self._cache_bar = QProgressBar()
+        self._cache_bar.setRange(0, 100)
+        self._cache_bar.setValue(0)
+        self._cache_bar.setTextVisible(False)
+        self._cache_bar.setFixedSize(60, 6)
+        self._cache_bar.setStyleSheet(
+            "QProgressBar { border: none; border-radius: 3px; background: #2E2E50; }"
+            "QProgressBar::chunk { border-radius: 3px; background: #A78BFA; }"
+        )
+        self._cache_bar.setToolTip("Local cache usage")
+        self._cache_bar.setVisible(is_mount)
+        bottom.addWidget(self._cache_bar)
+
+        self._cache_label = QLabel("")
+        self._cache_label.setStyleSheet(
+            "color: #A78BFA; font-size: 11px; font-weight: 600; background: transparent;"
+        )
+        self._cache_label.setToolTip("Files cached locally / max cache size")
+        self._cache_label.setVisible(is_mount)
+        bottom.addWidget(self._cache_label)
+
         self._speed_label = QLabel("")
         self._speed_label.setStyleSheet(
             "color: #7C5CFC; font-size: 11px; font-weight: 600; background: transparent;"
         )
-        bottom.addWidget(self._file_label, 1)
         bottom.addWidget(self._speed_label)
+
         root.addLayout(bottom)
+
+    # ------------------------------------------------------------------
+    # Status updates
+    # ------------------------------------------------------------------
 
     def update_status(self, status: JobStatus) -> None:
         self._current_status = status
@@ -192,6 +268,16 @@ class SyncStatusCard(QFrame):
             self._file_label.setText("")
             self._speed_label.setText("")
 
+        # Start or stop cache size polling
+        if is_mounted:
+            self._refresh_cache_size()
+            self._cache_timer.start()
+        else:
+            self._cache_timer.stop()
+            if self.remote.sync_mode == SyncMode.MOUNT:
+                self._cache_label.setText("not mounted")
+                self._cache_bar.setValue(0)
+
     def update_progress(self, stats: TransferStats) -> None:
         pct = int(stats.percent)
         self._progress.setValue(max(0, min(100, pct)))
@@ -200,3 +286,53 @@ class SyncStatusCard(QFrame):
             self._file_label.setText(fname)
         if stats.speed_bps > 0:
             self._speed_label.setText(_format_speed(stats.speed_bps))
+
+    # ------------------------------------------------------------------
+    # Cache size polling
+    # ------------------------------------------------------------------
+
+    def _refresh_cache_size(self) -> None:
+        """Kick off a background thread to measure VFS cache size."""
+        if self._cache_thread and self._cache_thread.isRunning():
+            return
+        self._cache_thread = _CacheSizeThread(self.remote.remote_id, self)
+        self._cache_thread.result.connect(self._on_cache_size)
+        self._cache_thread.start()
+
+    def _on_cache_size(self, used_bytes: int) -> None:
+        """Update cache label and bar from background result."""
+        # Parse max size from RemoteConfig (e.g. "1G", "500M")
+        max_bytes = _parse_size(self.remote.mount_cache_size)
+        used_str = _format_bytes(used_bytes)
+        max_str = _format_bytes(max_bytes)
+        self._cache_label.setText(f"Cache: {used_str} / {max_str}")
+        if max_bytes > 0:
+            pct = min(100, int(used_bytes / max_bytes * 100))
+            self._cache_bar.setValue(pct)
+            # Turn bar red when > 80% full
+            if pct >= 80:
+                self._cache_bar.setStyleSheet(
+                    "QProgressBar { border: none; border-radius: 3px; background: #2E2E50; }"
+                    "QProgressBar::chunk { border-radius: 3px; background: #F87171; }"
+                )
+            else:
+                self._cache_bar.setStyleSheet(
+                    "QProgressBar { border: none; border-radius: 3px; background: #2E2E50; }"
+                    "QProgressBar::chunk { border-radius: 3px; background: #A78BFA; }"
+                )
+
+
+def _parse_size(s: str) -> int:
+    """Parse rclone size string like '1G', '500M', '2T' into bytes."""
+    s = s.strip().upper()
+    units = {"B": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
+    for suffix, mult in units.items():
+        if s.endswith(suffix):
+            try:
+                return int(float(s[:-1]) * mult)
+            except ValueError:
+                return 0
+    try:
+        return int(s)
+    except ValueError:
+        return 0
