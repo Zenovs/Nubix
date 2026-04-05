@@ -192,7 +192,7 @@ else
     info "Installiere Python-Abhängigkeiten..."
     pip install --quiet --upgrade pip
     # PySide6 kommt von apt (x86 + ARM kompatibel) — nur restliche deps via pip
-    pip install --quiet PyYAML cryptography requests 2>/dev/null || true
+    pip install --quiet PyYAML cryptography requests watchdog 2>/dev/null || true
     pip install --quiet secretstorage 2>/dev/null || true
     success "Python-Abhängigkeiten installiert."
 

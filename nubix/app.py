@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from nubix.core.bandwidth_controller import BandwidthController
 from nubix.core.config_manager import ConfigManager
 from nubix.core.credential_vault import CredentialVault
+from nubix.core.file_watcher import FileWatcher
 from nubix.core.mount_manager import MountManager
 from nubix.core.rclone_engine import RcloneEngine
 from nubix.core.remote_registry import RemoteRegistry
@@ -67,14 +68,19 @@ class NubixApp:
             self._sync_manager = None
             self._mount_manager = None
 
+        self._file_watcher = FileWatcher()
+        if self._sync_manager:
+            self._file_watcher.sync_needed.connect(self._on_watcher_sync_needed)
+
         self._scheduler = Scheduler()
         if self._sync_manager:
             self._scheduler.trigger_start.connect(self._on_scheduler_trigger_start)
             self._scheduler.trigger_stop.connect(self._sync_manager.stop_job)
 
-        # Keep scheduler in sync when remotes are updated or removed via settings
+        # Keep scheduler and file watcher in sync when remotes are updated/removed
         self._registry.remote_updated.connect(self._on_remote_updated)
         self._registry.remote_removed.connect(self._on_remote_removed)
+        self._registry.remote_added.connect(self._on_remote_added)
         self._updater = Updater()
 
         qt_app.aboutToQuit.connect(self._shutdown)
@@ -122,6 +128,11 @@ class NubixApp:
             self._window.show()
         self._scheduler.start()
 
+        # Start file watcher and register all existing non-mount remotes
+        self._file_watcher.start()
+        for rc in self._registry.list_remotes():
+            self._register_watcher(rc)
+
         # Check for updates after a short delay (don't block startup)
         from PySide6.QtCore import QTimer
 
@@ -141,8 +152,13 @@ class NubixApp:
             self._window.raise_()
             self._window.activateWindow()
 
+    def _on_remote_added(self, rc) -> None:
+        """Register watcher for a newly added remote."""
+        self._register_watcher(rc)
+
     def _on_remote_removed(self, remote_id: str):
         """Clean up all subsystems when a remote is deleted."""
+        self._file_watcher.remove_watch(remote_id)
         if self._mount_manager:
             self._mount_manager.unmount(remote_id)
         if self._sync_manager:
@@ -152,7 +168,9 @@ class NubixApp:
             self._engine.delete_remote(remote_id)
 
     def _on_remote_updated(self, rc):
-        """Refresh scheduler when a remote's schedule settings change."""
+        """Refresh scheduler and file watcher when a remote's settings change."""
+        self._file_watcher.remove_watch(rc.remote_id)
+        self._register_watcher(rc)
         self._scheduler.remove_job(rc.remote_id)
         if rc.is_enabled and rc.is_scheduled:
             job = rc.to_sync_job()
@@ -161,6 +179,28 @@ class NubixApp:
                     self._scheduler.add_job(job)
                 except Exception as e:
                     logger.warning("Scheduler update failed for %s: %s", rc.remote_id, e)
+
+    def _register_watcher(self, rc) -> None:
+        """Add a file system watch for *rc* if eligible (enabled, non-mount)."""
+        from nubix.core.sync_job import SyncMode
+
+        if not rc.is_enabled:
+            return
+        if rc.sync_mode == SyncMode.MOUNT:
+            return  # mount-mode writes directly through FUSE — no watcher needed
+        local = Path(rc.local_path)
+        if local.exists():
+            self._file_watcher.add_watch(rc.remote_id, local)
+
+    def _on_watcher_sync_needed(self, remote_id: str) -> None:
+        """Triggered by file watcher debounce — start a sync if not already running."""
+        if not self._sync_manager:
+            return
+        for rc in self._registry.list_remotes():
+            if rc.remote_id == remote_id:
+                logger.info("Auto-sync triggered by file change: %s", remote_id)
+                self._sync_manager.start_job(rc.to_sync_job())
+                return
 
     def _on_scheduler_trigger_start(self, job_id: str):
         if not self._sync_manager:
@@ -180,6 +220,7 @@ class NubixApp:
     def _shutdown(self):
         logger.info("Nubix shutting down…")
         self._scheduler.stop()
+        self._file_watcher.stop()
         if self._mount_manager:
             self._mount_manager.unmount_all()
         if self._sync_manager:
