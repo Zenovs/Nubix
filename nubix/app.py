@@ -148,6 +148,17 @@ class NubixApp:
                         rc.mount_cache_size,
                     )
 
+        # Auto-sync timer — syncs all enabled non-mount remotes every 5 minutes
+        # so that cloud deletions/changes are picked up without manual action.
+        if self._sync_manager:
+            from PySide6.QtCore import QTimer as _QTimer
+
+            self._auto_sync_timer = _QTimer(self._window)
+            self._auto_sync_timer.setInterval(5 * 60 * 1000)  # 5 minutes
+            self._auto_sync_timer.timeout.connect(self._auto_sync_all)
+            self._auto_sync_timer.start()
+            logger.info("Auto-sync timer started (interval: 5 min)")
+
         # Check for updates after a short delay (don't block startup)
         from PySide6.QtCore import QTimer
 
@@ -218,6 +229,17 @@ class NubixApp:
                 "Cannot register watcher for %s: path %s does not exist", rc.remote_id, local
             )
 
+    def _auto_sync_all(self) -> None:
+        """Triggered every 5 minutes — sync all enabled non-mount remotes."""
+        if not self._sync_manager:
+            return
+        from nubix.core.sync_job import SyncMode
+
+        for rc in self._registry.list_remotes():
+            if rc.is_enabled and rc.sync_mode != SyncMode.MOUNT:
+                logger.debug("Auto-sync: starting job for %s", rc.remote_id)
+                self._sync_manager.start_job(rc.to_sync_job())
+
     def _on_watcher_sync_needed(self, remote_id: str) -> None:
         """Triggered by file watcher debounce — start a sync if not already running."""
         if not self._sync_manager:
@@ -246,6 +268,8 @@ class NubixApp:
     def _shutdown(self):
         logger.info("Nubix shutting down…")
         self._scheduler.stop()
+        if hasattr(self, "_auto_sync_timer"):
+            self._auto_sync_timer.stop()
         self._file_watcher.stop()
         if self._mount_manager:
             self._mount_manager.unmount_all()
