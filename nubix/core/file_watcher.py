@@ -8,16 +8,22 @@ arrived for DEBOUNCE_SECONDS, avoiding rapid-fire syncs during bulk writes
 
 Only non-mount remotes are watched — mount-mode remotes write directly
 through rclone FUSE and do not need a watcher.
+
+Thread safety
+-------------
+watchdog fires events on its own OS thread.  Qt timers and signals must run
+on the Qt main thread.  We bridge the gap with an *internal* Qt signal
+(_event_received) whose connection is always a QueuedConnection — Qt
+guarantees cross-thread signal delivery via the event loop.
 """
 
 from __future__ import annotations
 
 import logging
-import threading
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +36,16 @@ class FileWatcher(QObject):
     Watches local directories and emits sync_needed(remote_id) after changes.
 
     One watchdog Observer thread is shared across all watched directories.
-    Per-remote debounce timers run on the Qt main thread via QTimer.
+    Per-remote debounce timers run on the Qt main thread.
     """
 
-    sync_needed = Signal(str)  # remote_id
+    sync_needed = Signal(str)  # remote_id — emitted after debounce
+
+    # Internal: bridges the watchdog thread → Qt main thread safely.
+    # Qt automatically uses QueuedConnection when sender and receiver live
+    # on different threads, so this signal is always delivered via the
+    # event loop regardless of which thread emits it.
+    _event_received = Signal(str)  # remote_id
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
@@ -42,6 +54,9 @@ class FileWatcher(QObject):
         self._timers: dict[str, QTimer] = {}  # remote_id → debounce QTimer
         self._paths: dict[str, Path] = {}  # remote_id → local_path
         self._started = False
+
+        # Connect internal signal to debounce reset — always runs on main thread
+        self._event_received.connect(self._reset_debounce)
 
     # ------------------------------------------------------------------
     # Public API
@@ -86,9 +101,7 @@ class FileWatcher(QObject):
             return  # already watching
 
         try:
-            from watchdog.events import FileSystemEventHandler
-
-            handler = _DebounceHandler(remote_id, self._schedule_sync)
+            handler = _DebounceHandler(remote_id, self._on_fs_event)
             watch = self._observer.schedule(handler, str(local_path), recursive=True)
             self._watches[remote_id] = watch
             self._paths[remote_id] = local_path
@@ -114,20 +127,16 @@ class FileWatcher(QObject):
         return list(self._watches.keys())
 
     # ------------------------------------------------------------------
-    # Internal — called from watchdog handler thread, marshalled to Qt
+    # Internal
     # ------------------------------------------------------------------
 
-    def _schedule_sync(self, remote_id: str) -> None:
-        """
-        Called from the watchdog thread.  Uses a thread-safe Qt mechanism to
-        restart the debounce timer on the main thread.
-        """
-        # QTimer must be started from the main thread; use a zero-ms singleShot
-        # which is safe to call from any thread and runs in the main event loop.
-        QTimer.singleShot(0, lambda: self._reset_debounce(remote_id))
+    def _on_fs_event(self, remote_id: str) -> None:
+        """Called from the watchdog OS thread — emit signal to cross to Qt thread."""
+        self._event_received.emit(remote_id)
 
+    @Slot(str)
     def _reset_debounce(self, remote_id: str) -> None:
-        """Restart the debounce timer for remote_id (runs on main thread)."""
+        """Restart the debounce timer (always runs on Qt main thread)."""
         if remote_id not in self._timers:
             timer = QTimer(self)
             timer.setSingleShot(True)
@@ -137,22 +146,22 @@ class FileWatcher(QObject):
         self._timers[remote_id].start()  # restart resets the countdown
 
     def _fire(self, remote_id: str) -> None:
-        logger.info("Change detected in %s — triggering sync", remote_id)
+        logger.info("File change detected in '%s' — triggering sync", remote_id)
         self.sync_needed.emit(remote_id)
 
 
 class _DebounceHandler:
-    """Minimal watchdog event handler that calls a callback on any FS event."""
+    """Watchdog event handler — calls callback on any relevant FS event."""
+
+    # Temp/editor file suffixes to ignore
+    _IGNORE = (".swp", ".swpx", ".tmp", ".part", "~")
 
     def __init__(self, remote_id: str, callback):
         self._remote_id = remote_id
         self._callback = callback
 
-    # watchdog calls dispatch() for every event
     def dispatch(self, event) -> None:
-        # Ignore directory-only events (directory creation without content)
-        # and temporary editor files (e.g. .swp, ~)
         src = getattr(event, "src_path", "")
-        if src.endswith((".swp", ".swpx", ".tmp", "~")):
+        if any(src.endswith(s) for s in self._IGNORE):
             return
         self._callback(self._remote_id)

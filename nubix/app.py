@@ -204,8 +204,19 @@ class NubixApp:
         if rc.sync_mode == SyncMode.MOUNT:
             return  # mount-mode writes directly through FUSE — no watcher needed
         local = Path(rc.local_path)
+        # Create the local directory if it doesn't exist yet so the watcher
+        # can be registered immediately rather than being silently skipped.
+        try:
+            local.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         if local.exists():
             self._file_watcher.add_watch(rc.remote_id, local)
+            logger.info("Auto-watcher registered for %s → %s", rc.remote_id, local)
+        else:
+            logger.warning(
+                "Cannot register watcher for %s: path %s does not exist", rc.remote_id, local
+            )
 
     def _on_watcher_sync_needed(self, remote_id: str) -> None:
         """Triggered by file watcher debounce — start a sync if not already running."""
