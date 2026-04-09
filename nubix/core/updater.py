@@ -103,19 +103,34 @@ class GitPullThread(QThread):
 
     def run(self):
         try:
-            result = subprocess.run(
-                ["git", "pull", "--ff-only"],
+            # fetch + reset works with shallow clones (git clone --depth=1)
+            # where git pull --ff-only may fail due to missing history
+            fetch = subprocess.run(
+                ["git", "fetch", "--depth=1", "origin", "main"],
                 cwd=self._repo_dir,
                 capture_output=True,
                 text=True,
                 timeout=60,
             )
-            if result.returncode == 0:
-                logger.info("git pull succeeded: %s", result.stdout.strip())
+            if fetch.returncode != 0:
+                msg = (fetch.stderr or fetch.stdout).strip()
+                logger.error("git fetch failed: %s", msg)
+                self.pull_failed.emit(f"git fetch failed: {msg}")
+                return
+
+            reset = subprocess.run(
+                ["git", "reset", "--hard", "origin/main"],
+                cwd=self._repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if reset.returncode == 0:
+                logger.info("git update succeeded: %s", reset.stdout.strip())
                 self.pull_done.emit()
             else:
-                msg = (result.stderr or result.stdout).strip()
-                logger.error("git pull failed: %s", msg)
+                msg = (reset.stderr or reset.stdout).strip()
+                logger.error("git reset failed: %s", msg)
                 self.pull_failed.emit(msg)
         except FileNotFoundError:
             self.pull_failed.emit("git not found. Install it with: sudo apt install git")
