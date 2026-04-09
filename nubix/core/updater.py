@@ -91,9 +91,8 @@ class UpdateCheckThread(QThread):
 
 
 class GitPullThread(QThread):
-    """Runs `git pull` in the Nubix source directory."""
+    """Updates source install via git fetch+reset, or tarball if no .git exists."""
 
-    # Use pull_done instead of finished to avoid shadowing QThread.finished
     pull_done = Signal()
     pull_failed = Signal(str)
 
@@ -102,9 +101,13 @@ class GitPullThread(QThread):
         self._repo_dir = repo_dir
 
     def run(self):
+        if (self._repo_dir / ".git").exists():
+            self._update_via_git()
+        else:
+            self._update_via_tarball()
+
+    def _update_via_git(self):
         try:
-            # fetch + reset works with shallow clones (git clone --depth=1)
-            # where git pull --ff-only may fail due to missing history
             fetch = subprocess.run(
                 ["git", "fetch", "--depth=1", "origin", "main"],
                 cwd=self._repo_dir,
@@ -135,6 +138,53 @@ class GitPullThread(QThread):
         except FileNotFoundError:
             self.pull_failed.emit("git not found. Install it with: sudo apt install git")
         except Exception as e:
+            self.pull_failed.emit(str(e))
+
+    def _update_via_tarball(self):
+        """Download source tarball from GitHub and extract over install dir."""
+        import shutil
+        import tarfile
+        import tempfile
+
+        url = "https://github.com/Zenovs/Nubix/archive/refs/heads/main.tar.gz"
+        try:
+            logger.info("No .git found — updating via tarball from %s", url)
+            resp = requests.get(url, stream=True, timeout=60)
+            resp.raise_for_status()
+
+            with tempfile.TemporaryDirectory() as tmp:
+                archive = Path(tmp) / "nubix.tar.gz"
+                with open(archive, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+
+                with tarfile.open(archive, "r:gz") as tar:
+                    tar.extractall(tmp)
+
+                # GitHub names the extracted folder "Nubix-main"
+                extracted = next(Path(tmp).glob("Nubix-*"), None)
+                if not extracted or not extracted.is_dir():
+                    self.pull_failed.emit("Could not find extracted source in tarball")
+                    return
+
+                # Copy all source files, skip .venv and .git
+                skip = {".venv", ".git"}
+                for item in extracted.iterdir():
+                    if item.name in skip:
+                        continue
+                    dst = self._repo_dir / item.name
+                    if item.is_dir():
+                        if dst.exists():
+                            shutil.rmtree(dst)
+                        shutil.copytree(item, dst)
+                    else:
+                        shutil.copy2(item, dst)
+
+            logger.info("Tarball update complete")
+            self.pull_done.emit()
+        except Exception as e:
+            logger.error("Tarball update failed: %s", e)
             self.pull_failed.emit(str(e))
 
 
@@ -265,16 +315,22 @@ class Updater(QObject):
         self.update_available.emit(info)
 
     def _source_repo_dir(self) -> Optional[Path]:
-        """Return the git repo root if Nubix is running from source, else None."""
-        # Skip if running as AppImage or PyInstaller bundle
+        """Return the source install directory, or None if running as AppImage/bundle."""
         if os.environ.get("APPIMAGE") or getattr(sys, "frozen", False):
             return None
-        # Walk up from this file to find .git directory
+
+        # Walk up from this file to find .git directory (git clone installs)
         candidate = Path(__file__).resolve().parent
         for _ in range(6):
             if (candidate / ".git").exists():
                 return candidate
             candidate = candidate.parent
+
+        # Fallback: standard install location created by install.sh (no .git)
+        standard = Path.home() / ".local" / "share" / "nubix"
+        if standard.exists() and (standard / "main.py").exists():
+            return standard
+
         return None
 
     def _current_binary(self) -> Optional[Path]:
