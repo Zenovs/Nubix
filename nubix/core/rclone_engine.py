@@ -497,7 +497,14 @@ class RcloneEngine(QObject):
         cache_size: str = "1G",
     ) -> subprocess.Popen:
         """Launch rclone mount as a foreground subprocess (caller manages its lifetime)."""
-        mountpoint.mkdir(parents=True, exist_ok=True)
+        try:
+            mountpoint.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            raise PermissionError(
+                f"Cannot create mount directory '{mountpoint}'.\n"
+                "Please choose a path inside your home folder, e.g.:\n"
+                f"  {Path.home() / 'mnt' / mountpoint.name}"
+            )
         remote_src = f"{remote_id}:{remote_path}"
         cmd = [
             self._binary,

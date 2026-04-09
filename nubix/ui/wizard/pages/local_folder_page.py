@@ -68,15 +68,18 @@ class LocalFolderPage(QWizardPage):
         if path.is_file():
             self._warn_label.setText("That path is a file, not a folder.")
             return False
-        # Check parent is writable
-        parent = path if path.exists() else path.parent
-        if not parent.exists():
-            self._warn_label.setText("")
-            return True  # Will be created
+        # Find the highest existing ancestor and check it is writable.
+        # This catches cases like /media/user/foo where /media/user exists
+        # but is not writable by the current user.
         import os
 
-        if not os.access(str(parent), os.W_OK):
-            self._warn_label.setText("That folder is not writable.")
+        ancestor = path
+        while not ancestor.exists():
+            ancestor = ancestor.parent
+        if not os.access(str(ancestor), os.W_OK):
+            self._warn_label.setText(
+                f"'{ancestor}' is not writable. Choose a folder inside your home directory."
+            )
             return False
         self._warn_label.setText("")
         return True
