@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -38,6 +41,11 @@ class RemotesTab(QWidget):
         self._btn_add.clicked.connect(self._add)
         buttons.addWidget(self._btn_add)
 
+        self._btn_change_path = QPushButton("Change Path…")
+        self._btn_change_path.setEnabled(False)
+        self._btn_change_path.clicked.connect(self._change_path)
+        buttons.addWidget(self._btn_change_path)
+
         self._btn_remove = QPushButton("Remove")
         self._btn_remove.setEnabled(False)  # disabled until something is selected
         self._btn_remove.clicked.connect(self._remove)
@@ -59,7 +67,9 @@ class RemotesTab(QWidget):
         self._list.addItem(item)
 
     def _on_selection_changed(self, current, previous):
-        self._btn_remove.setEnabled(current is not None)
+        enabled = current is not None
+        self._btn_remove.setEnabled(enabled)
+        self._btn_change_path.setEnabled(enabled)
 
     def _on_remote_added(self, rc: RemoteConfig):
         self._add_item(rc)
@@ -76,6 +86,39 @@ class RemotesTab(QWidget):
         parent = self.window()
         if hasattr(parent, "open_wizard"):
             parent.open_wizard()
+
+    def _change_path(self):
+        item = self._list.currentItem()
+        if not item:
+            return
+        remote_id = item.data(Qt.ItemDataRole.UserRole)
+        try:
+            rc = self._registry.get_remote(remote_id)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not find connection: {e}")
+            return
+
+        new_path = QFileDialog.getExistingDirectory(
+            self,
+            f"Choose new local folder for '{rc.display_name}'",
+            str(Path.home()),
+        )
+        if not new_path:
+            return
+
+        try:
+            self._registry.update_remote(remote_id, {"local_path": new_path})
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to update path: {e}")
+            return
+
+        # Refresh list item text
+        item.setText(f"{rc.display_name}  ({new_path})")
+        QMessageBox.information(
+            self,
+            "Path Updated",
+            f"Local folder changed to:\n{new_path}\n\nRestart Nubix to apply the change.",
+        )
 
     def _remove(self):
         item = self._list.currentItem()
