@@ -203,7 +203,9 @@ class RcloneEngine(QObject):
             text=True,
             timeout=15,
         )
-        return [r.rstrip(":") for r in result.stdout.splitlines() if r.strip()]
+        # Only lines ending with ":" are valid remote names; any other output
+        # (warnings, errors) is silently discarded.
+        return [r.rstrip(":") for r in result.stdout.splitlines() if r.strip().endswith(":")]
 
     def list_remote_dirs(self, remote_id: str, remote_path: str = "") -> list[dict]:
         """List directories at a remote path. Returns list of {name, is_dir} dicts."""

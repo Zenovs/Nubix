@@ -49,6 +49,10 @@ class GenericProvider(BaseProvider):
             args += ["user", credentials.get("username", "")]
             if credentials.get("password"):
                 args += ["pass", credentials["password"]]
+            else:
+                # No password: use SSH key / agent auth. ask_password=false
+                # prevents rclone from hanging on a prompt in --non-interactive mode.
+                args += ["ask_password", "false"]
         elif self.auth_type == AuthType.SIMPLE:
             args += ["user", credentials.get("username", "")]
             args += ["pass", credentials.get("password", "")]

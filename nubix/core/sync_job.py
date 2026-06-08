@@ -92,6 +92,8 @@ class SyncJob:
                 }
                 for w in self.schedule_windows
             ],
+            "mount_cache_mode": self.mount_cache_mode,
+            "mount_cache_size": self.mount_cache_size,
         }
 
     @classmethod
@@ -115,4 +117,6 @@ class SyncJob:
             bandwidth_limit=data.get("bandwidth_limit", "0"),
             is_scheduled=data.get("is_scheduled", False),
             schedule_windows=windows,
+            mount_cache_mode=data.get("mount_cache_mode", "full"),
+            mount_cache_size=data.get("mount_cache_size", "1G"),
         )

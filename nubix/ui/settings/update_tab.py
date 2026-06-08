@@ -142,13 +142,19 @@ class UpdateTab(QWidget):
         self._updater.download_and_apply(self._pending_release)
 
     def _restart(self):
+        from PySide6.QtCore import QTimer
+
+        # Defer by 100 ms so Qt can finish processing the button-click event
+        # before os.execv() replaces the process.
+        QTimer.singleShot(100, self._do_restart)
+
+    def _do_restart(self):
         appimage = os.environ.get("APPIMAGE")
         if appimage:
             os.execv(appimage, [appimage])
         elif getattr(sys, "frozen", False):
             os.execv(sys.executable, [sys.executable] + sys.argv)
         else:
-            # Source install: re-exec python with the original main.py
             import pathlib
 
             main_py = str(pathlib.Path(sys.argv[0]).resolve())
