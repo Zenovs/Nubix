@@ -42,6 +42,7 @@ class ConfirmationPage(QWizardPage):
             SyncMode.FULL.value: "Full Sync (Download Everything)",
             SyncMode.SELECTIVE.value: "Selective Sync",
             SyncMode.BIDIRECTIONAL.value: "Bidirectional Sync",
+            SyncMode.MOUNT.value: "Mount (On-Demand Access)",
         }
 
         try:

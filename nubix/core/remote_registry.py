@@ -140,8 +140,12 @@ class RemoteRegistry(QObject):
     def update_remote(self, remote_id: str, data: dict) -> RemoteConfig:
         if remote_id not in self._remotes:
             raise RemoteNotConfiguredError(remote_id)
-        data["remote_id"] = remote_id
-        rc = RemoteConfig.from_dict(data)
+        # Merge partial updates into the existing config so callers don't need
+        # to pass the full config dict (e.g. changing only local_path).
+        merged = self._remotes[remote_id].to_dict()
+        merged.update(data)
+        merged["remote_id"] = remote_id
+        rc = RemoteConfig.from_dict(merged)
         self._remotes[remote_id] = rc
         self._config.save_remote_config(remote_id, rc.to_dict())
         self.remote_updated.emit(rc)

@@ -288,19 +288,34 @@ class Updater(QObject):
             )
             return
 
-        dest = Path(tempfile.mkdtemp()) / Path(url).name
+        self._tmp_dir = tempfile.mkdtemp()
+        dest = Path(self._tmp_dir) / Path(url).name
         self._download_thread = DownloadThread(url, dest, self)
         self._download_thread.progress.connect(self.download_progress)
         self._download_thread.finished.connect(
             lambda path: self._apply_update(Path(path), current_path)
         )
-        self._download_thread.failed.connect(self.update_failed)
+        self._download_thread.failed.connect(self._on_download_failed)
         self._download_thread.start()
 
     def _on_git_pull_done(self) -> None:
         logger.info("git pull complete — signalling restart")
         self.download_complete.emit()
         self.restart_required.emit()
+
+    def _on_download_failed(self, error: str) -> None:
+        self._cleanup_tmp()
+        self.update_failed.emit(error)
+
+    def _cleanup_tmp(self) -> None:
+        tmp = getattr(self, "_tmp_dir", None)
+        if tmp:
+            import shutil
+            try:
+                shutil.rmtree(tmp, ignore_errors=True)
+            except Exception:
+                pass
+            self._tmp_dir = None
 
     @property
     def current_version(self) -> str:
@@ -353,8 +368,10 @@ class Updater(QObject):
             shutil.move(str(downloaded), str(current))
             logger.info("Update applied: %s -> %s", downloaded, current)
 
+            self._cleanup_tmp()
             self.download_complete.emit()
             self.restart_required.emit()
         except Exception as e:
             logger.error("Failed to apply update: %s", e)
+            self._cleanup_tmp()
             self.update_failed.emit(f"Failed to apply update: {e}")

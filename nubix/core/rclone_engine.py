@@ -244,6 +244,7 @@ class RcloneEngine(QObject):
             "--config",
             str(RCLONE_CONFIG_FILE),
             "--non-interactive",
+            "--obscure",  # Let rclone obscure password-type fields before storing
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
@@ -459,7 +460,7 @@ class RcloneEngine(QObject):
             dst,
             "--config",
             str(RCLONE_CONFIG_FILE),
-            "--stats=1s",
+            "--stats=5s",
             "--stats-one-line",
             "--use-json-log",
             "--log-level=INFO",
@@ -518,10 +519,15 @@ class RcloneEngine(QObject):
             "--vfs-cache-max-size",
             cache_size,
             "--allow-non-empty",
-            "--log-level=INFO",
+            "--log-level=ERROR",
+            "--timeout=30s",
+            "--contimeout=15s",
+            "--dir-cache-time=5m",
         ]
         logger.info("Starting mount %s → %s: %s", remote_src, mountpoint, " ".join(cmd))
-        return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # stdout/stderr must be discarded — piping them without a reader causes the 64 KB
+        # pipe buffer to fill, which blocks rclone on write() and stalls all FUSE operations.
+        return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def unmount(self, mountpoint: Path) -> bool:
         """Unmount a FUSE mountpoint using fusermount3 / fusermount."""

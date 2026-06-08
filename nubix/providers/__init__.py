@@ -24,11 +24,17 @@ class GenericProvider(BaseProvider):
         # First element MUST be the rclone backend type
         args = [self.get_rclone_type()]
         if self.auth_type == AuthType.WEBDAV_BASIC:
-            args += ["url", credentials.get("url", "")]
+            url = credentials.get("url", "").rstrip("/")
+            username = credentials.get("username", "")
+            # Nextcloud and ownCloud require the full WebDAV URL including the
+            # user's files namespace — rclone does not auto-append this path.
+            if self.provider_id in ("nextcloud", "owncloud"):
+                url = f"{url}/remote.php/dav/files/{username}"
+            args += ["url", url]
             # vendor: use provider_id for known vendors, "other" for generic webdav
             vendor = self.provider_id if self.provider_id != "webdav" else "other"
             args += ["vendor", vendor]
-            args += ["user", credentials.get("username", "")]
+            args += ["user", username]
             args += ["pass", credentials.get("password", "")]
         elif self.auth_type == AuthType.S3:
             args += ["provider", credentials.get("provider", "AWS")]
