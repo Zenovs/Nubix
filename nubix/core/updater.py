@@ -311,6 +311,7 @@ class Updater(QObject):
         tmp = getattr(self, "_tmp_dir", None)
         if tmp:
             import shutil
+
             try:
                 shutil.rmtree(tmp, ignore_errors=True)
             except Exception:
