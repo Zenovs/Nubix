@@ -525,6 +525,8 @@ class RcloneEngine(QObject):
             "--timeout=30s",
             "--contimeout=15s",
             "--dir-cache-time=5m",
+            "--tpslimit=4",
+            "--vfs-cache-poll-interval=5m",
         ]
         logger.info("Starting mount %s → %s: %s", remote_src, mountpoint, " ".join(cmd))
         # stdout/stderr must be discarded — piping them without a reader causes the 64 KB
