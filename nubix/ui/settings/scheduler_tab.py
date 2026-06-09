@@ -39,7 +39,7 @@ class SchedulerTab(QWidget):
 
         # Remote list
         self._remote_list = QListWidget()
-        self._remote_list.currentRowChanged.connect(self._on_remote_selected)
+        self._remote_list.currentItemChanged.connect(self._on_item_changed)
         splitter.addWidget(self._remote_list)
 
         # Schedule settings panel
@@ -85,13 +85,14 @@ class SchedulerTab(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, rc.remote_id)
             self._remote_list.addItem(item)
 
-    def _on_remote_selected(self, row: int):
-        if row < 0:
+    def _on_item_changed(self, current, previous):
+        # Persist the previous item's schedule before loading the new one so
+        # changes are not lost when the user clicks a different remote.
+        if previous is not None:
+            self._save_item(previous)
+        if current is None:
             return
-        item = self._remote_list.item(row)
-        if not item:
-            return
-        remote_id = item.data(Qt.ItemDataRole.UserRole)
+        remote_id = current.data(Qt.ItemDataRole.UserRole)
         rc = self._registry.get_remote(remote_id)
         self._enable_schedule.setChecked(rc.is_scheduled)
         if rc.is_scheduled and rc.to_sync_job().schedule_windows:
@@ -100,17 +101,18 @@ class SchedulerTab(QWidget):
                 cb.setChecked(i in w.days)
             self._start_time.setTime(QTime(w.start_time.hour, w.start_time.minute))
             self._end_time.setTime(QTime(w.end_time.hour, w.end_time.minute))
+        else:
+            for cb in self._day_checks:
+                cb.setChecked(False)
 
-    def save(self):
-        item = self._remote_list.currentItem()
-        if not item:
-            return
+    def _save_item(self, item) -> None:
         remote_id = item.data(Qt.ItemDataRole.UserRole)
-        rc = self._registry.get_remote(remote_id)
+        try:
+            rc = self._registry.get_remote(remote_id)
+        except Exception:
+            return
         data = rc.to_dict()
         data["is_scheduled"] = self._enable_schedule.isChecked()
-
-        # Save the schedule window from UI
         days = [i for i, cb in enumerate(self._day_checks) if cb.isChecked()]
         start_qt = self._start_time.time()
         end_qt = self._end_time.time()
@@ -124,5 +126,9 @@ class SchedulerTab(QWidget):
             ]
         else:
             data["schedule_windows"] = []
-
         self._registry.update_remote(remote_id, data)
+
+    def save(self):
+        item = self._remote_list.currentItem()
+        if item:
+            self._save_item(item)

@@ -26,7 +26,7 @@ class ConfirmationPage(QWizardPage):
         layout.addLayout(self._form)
         layout.addSpacing(16)
 
-        self._start_now = QCheckBox("Start syncing immediately after setup")
+        self._start_now = QCheckBox("Start immediately after setup")
         self._start_now.setChecked(True)
         layout.addWidget(self._start_now)
         layout.addStretch()

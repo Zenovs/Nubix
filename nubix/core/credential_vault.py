@@ -147,10 +147,27 @@ class _FileBackend:
             return {}
 
     def _save(self) -> None:
+        import tempfile
+
         from cryptography.fernet import Fernet
 
         f = Fernet(self._key)
-        self._path.write_bytes(f.encrypt(json.dumps(self._data).encode()))
+        encrypted = f.encrypt(json.dumps(self._data).encode())
+        # Write to a sibling temp file then rename atomically to avoid
+        # corrupting the vault if the process is killed mid-write.
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=self._path.parent, prefix=".vault-")
+        try:
+            os.write(fd, encrypted)
+            os.close(fd)
+            os.replace(tmp, self._path)
+        except Exception:
+            os.close(fd)
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
     def store(self, remote_id: str, key: str, value: str) -> None:
         self._data.setdefault(remote_id, {})[key] = value

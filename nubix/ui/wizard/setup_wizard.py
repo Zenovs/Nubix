@@ -121,9 +121,10 @@ class SetupWizard(QWizard):
 
         logger.info("Remote %s added successfully", remote_id)
 
-        # Optionally start sync immediately
+        # Optionally start sync immediately (mount-mode remotes are auto-started
+        # by app._on_remote_added via the remote_added signal — don't bisync them)
         conf_page = self.page(PAGE_CONFIRMATION)
         if isinstance(conf_page, ConfirmationPage) and conf_page.should_start_now():
-            if self._sync is not None:
+            if self._sync is not None and SyncMode(sync_mode_value) != SyncMode.MOUNT:
                 logger.info("Starting immediate sync for %s", remote_id)
                 self._sync.start_job(rc.to_sync_job())

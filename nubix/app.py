@@ -179,8 +179,18 @@ class NubixApp:
             self._window.activateWindow()
 
     def _on_remote_added(self, rc) -> None:
-        """Register watcher for a newly added remote."""
+        """Register watcher or start mount for a newly added remote."""
+        from nubix.core.sync_job import SyncMode
+
         self._register_watcher(rc)
+        if rc.is_enabled and rc.sync_mode == SyncMode.MOUNT and self._mount_manager:
+            self._mount_manager.mount(
+                rc.remote_id,
+                rc.remote_path,
+                Path(rc.local_path),
+                rc.mount_cache_mode,
+                rc.mount_cache_size,
+            )
 
     def _on_remote_removed(self, remote_id: str):
         """Clean up all subsystems when a remote is deleted."""
