@@ -53,6 +53,11 @@ class _ReaderThread(QThread):
 # It means --resync is required to rebuild the baseline.
 _BISYNC_MISSING_LISTINGS = "cannot find prior Path1 or Path2 listings"
 
+# rclone bisync safety check: aborts when >50% of local files would be deleted.
+# This happens when the local folder is out of sync with the recorded baseline
+# (e.g. sync was interrupted mid-download). Resetting the baseline fixes it.
+_BISYNC_TOO_MANY_DELETES = "too many deletes"
+
 # rclone ≥ 1.64 outputs this when --resync is used without --resync-acknowledged.
 # It appears at NOTICE level so parse_error_line() misses it — check the raw line.
 _BISYNC_NEEDS_ACK = "resync-acknowledged"
@@ -103,10 +108,13 @@ class RcloneProcess(QObject):
                 self.file_transferred.emit(stats.current_file)
 
     def _on_stderr(self, line: str):
-        # Detect the specific bisync "listing files missing" critical error immediately
-        # so the state can be reset before the process even finishes.
+        # Detect bisync errors that require a fresh --resync baseline immediately,
+        # before the process finishes, so the very next run rebuilds correctly.
         if _BISYNC_MISSING_LISTINGS in line:
             logger.warning("Bisync listing files missing — resync required: %s", self.job_id)
+            self.resync_required.emit()
+        if _BISYNC_TOO_MANY_DELETES in line:
+            logger.warning("Bisync too-many-deletes safety stop — resync required: %s", self.job_id)
             self.resync_required.emit()
 
         # rclone ≥ 1.64 outputs a NOTICE (not ERROR) when --resync-acknowledged is
