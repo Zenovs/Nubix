@@ -33,6 +33,9 @@ class SyncManager(QObject):
         self._bandwidth = bandwidth
         self._processes: dict[str, RcloneProcess] = {}
         self._statuses: dict[str, JobStatus] = {}
+        # Keep our own finished-slot per job so stop_job can disconnect just it —
+        # a blanket disconnect() would also sever the engine's bisync-state handler.
+        self._finished_slots: dict[str, object] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -62,7 +65,12 @@ class SyncManager(QObject):
                 lambda fname, jid=job.job_id: self.file_transferred.emit(jid, fname)
             )
             process.error_occurred.connect(lambda msg, jid=job.job_id: self._on_error(jid, msg))
-            process.finished.connect(lambda code, jid=job.job_id: self._on_finished(jid, code))
+
+            def _finished_slot(code, jid=job.job_id):
+                self._on_finished(jid, code)
+
+            self._finished_slots[job.job_id] = _finished_slot
+            process.finished.connect(_finished_slot)
 
             self.job_started.emit(job.job_id)
             self._emit_any_active()
@@ -75,10 +83,12 @@ class SyncManager(QObject):
         """Stop a running job."""
         proc = self._processes.pop(job_id, None)
         if proc:
-            try:
-                proc.finished.disconnect()
-            except Exception:
-                pass
+            slot = self._finished_slots.pop(job_id, None)
+            if slot is not None:
+                try:
+                    proc.finished.disconnect(slot)
+                except Exception:
+                    pass
             proc.stop()
             self._set_status(job_id, JobStatus.IDLE)
             self._emit_any_active()
@@ -106,7 +116,11 @@ class SyncManager(QObject):
         return self._statuses.get(job_id, JobStatus.IDLE)
 
     def active_job_ids(self) -> list[str]:
-        return [jid for jid, status in self._statuses.items() if status == JobStatus.SYNCING]
+        return [
+            jid
+            for jid, status in self._statuses.items()
+            if status in (JobStatus.SYNCING, JobStatus.PAUSED)
+        ]
 
     def is_any_active(self) -> bool:
         return len(self.active_job_ids()) > 0
@@ -116,7 +130,9 @@ class SyncManager(QObject):
     # ------------------------------------------------------------------
 
     def _is_active(self, job_id: str) -> bool:
-        return self._statuses.get(job_id) == JobStatus.SYNCING
+        # PAUSED counts as active: the rclone process still exists (SIGSTOPped),
+        # so starting a second bisync on the same pair would corrupt the baseline.
+        return self._statuses.get(job_id) in (JobStatus.SYNCING, JobStatus.PAUSED)
 
     def _set_status(self, job_id: str, status: JobStatus) -> None:
         self._statuses[job_id] = status
@@ -131,6 +147,7 @@ class SyncManager(QObject):
 
     def _on_finished(self, job_id: str, exit_code: int) -> None:
         self._processes.pop(job_id, None)
+        self._finished_slots.pop(job_id, None)
         if exit_code == 0:
             self._set_status(job_id, JobStatus.UP_TO_DATE)
         else:

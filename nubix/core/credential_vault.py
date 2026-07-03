@@ -128,7 +128,20 @@ class _FileBackend:
 
         # Use machine-id as password (not a secret, but makes the file machine-specific)
         machine_id_file = Path("/etc/machine-id")
-        password = machine_id_file.read_bytes() if machine_id_file.exists() else os.urandom(32)
+        if machine_id_file.exists():
+            password = machine_id_file.read_bytes()
+        else:
+            # No machine-id (containers, some immutable distros): persist a
+            # random key next to the vault. A fresh os.urandom() per process
+            # would silently make the vault undecryptable on the next launch.
+            key_file = self._path.parent / ".vault-key"
+            if key_file.exists():
+                password = key_file.read_bytes()
+            else:
+                password = os.urandom(32)
+                key_file.parent.mkdir(parents=True, exist_ok=True)
+                key_file.touch(mode=0o600)
+                key_file.write_bytes(password)
         salt = b"nubix-vault-v1"
         kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
         return base64.urlsafe_b64encode(kdf.derive(password))
@@ -157,12 +170,18 @@ class _FileBackend:
         # corrupting the vault if the process is killed mid-write.
         self._path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=self._path.parent, prefix=".vault-")
+        fd_closed = False
         try:
             os.write(fd, encrypted)
             os.close(fd)
+            fd_closed = True
             os.replace(tmp, self._path)
         except Exception:
-            os.close(fd)
+            if not fd_closed:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
             try:
                 os.unlink(tmp)
             except OSError:

@@ -111,15 +111,32 @@ def _clean_env() -> dict:
     return env
 
 
+def _supports_auth_no_open_browser(binary: str) -> bool:
+    """Probe whether this rclone supports --auth-no-open-browser (added v1.59).
+
+    Distro packages (Ubuntu 20.04 ships 1.50) predate the flag; passing it
+    there makes every OAuth attempt fail with "unknown flag".
+    """
+    try:
+        result = subprocess.run(
+            [binary, "authorize", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=_clean_env(),
+        )
+        return "--auth-no-open-browser" in (result.stdout + result.stderr)
+    except Exception:
+        return False
+
+
 class _RcloneAuthThread(QThread):
     """Runs `rclone authorize <type>` and emits the auth URL and token.
 
-    rclone opens the browser itself (no --auth-no-open-browser so this works
-    with any rclone version, including the older ones shipped by Ubuntu apt).
-    We spawn rclone with a clean LD_LIBRARY_PATH so that when rclone calls
-    xdg-open internally it uses system libs, not the AppImage-bundled ones.
-    We also parse the URL from the output so the UI can show it as a copyable
-    fallback in case the browser did not open.
+    With rclone ≥ 1.59 we pass --auth-no-open-browser and open the browser
+    ourselves (with a clean LD_LIBRARY_PATH so xdg-open works inside an
+    AppImage). Older rclone opens the browser itself; we still parse the URL
+    from the output so the UI can show it as a copyable fallback.
     """
 
     auth_url = Signal(str)  # emitted as soon as URL is detected in output
@@ -144,12 +161,16 @@ class _RcloneAuthThread(QThread):
 
     def run(self):
         try:
-            # Use --auth-no-open-browser so rclone only starts the local server
-            # and outputs the URL; we open the browser ourselves with a clean
-            # LD_LIBRARY_PATH (so xdg-open works inside AppImage).
-            # This flag is available since rclone v1.59.
+            # --auth-no-open-browser: rclone only starts the local server and
+            # outputs the URL; we open the browser ourselves with a clean
+            # LD_LIBRARY_PATH (so xdg-open works inside AppImage). The flag
+            # exists since rclone v1.59 — probe first so distro rclones
+            # (Ubuntu 20.04 ships 1.50) don't fail with "unknown flag".
+            cmd = [self._binary, "authorize", self._type]
+            if _supports_auth_no_open_browser(self._binary):
+                cmd.append("--auth-no-open-browser")
             proc = subprocess.Popen(
-                [self._binary, "authorize", self._type, "--auth-no-open-browser"],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -246,6 +267,10 @@ class AuthPage(QWizardPage):
         self._simple_widget = self._make_simple_widget()
         self._simple_widget.hide()
         self._layout.addWidget(self._simple_widget)
+
+        self._none_widget = self._make_none_widget()
+        self._none_widget.hide()
+        self._layout.addWidget(self._none_widget)
 
         self._layout.addStretch()
 
@@ -412,6 +437,16 @@ class AuthPage(QWizardPage):
             field.textChanged.connect(self.completeChanged)
         return w
 
+    def _make_none_widget(self) -> QWidget:
+        w = QWidget()
+        vl = QVBoxLayout(w)
+        vl.setContentsMargins(0, 0, 0, 0)
+        info = QLabel("This provider needs no credentials — click Next to continue.")
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #8888AA; font-size: 12px;")
+        vl.addWidget(info)
+        return w
+
     # ── Page lifecycle ─────────────────────────────────────────────────────────
 
     def initializePage(self):
@@ -439,6 +474,7 @@ class AuthPage(QWizardPage):
             self._s3_widget,
             self._sftp_widget,
             self._simple_widget,
+            self._none_widget,
         ):
             widget.hide()
 
@@ -450,6 +486,8 @@ class AuthPage(QWizardPage):
             self._sftp_widget.show()
         elif provider.auth_type == AuthType.SIMPLE:
             self._simple_widget.show()
+        elif provider.auth_type == AuthType.NONE:
+            self._none_widget.show()
         else:
             self._oauth_widget.show()
 
@@ -568,6 +606,8 @@ class AuthPage(QWizardPage):
             return bool(self._sftp_host.text().strip() and self._sftp_user.text().strip())
         elif provider.auth_type == AuthType.SIMPLE:
             return bool(self._simple_user.text().strip() and self._simple_pass.text().strip())
+        elif provider.auth_type == AuthType.NONE:
+            return True
         else:
             return bool(self._token)
 
@@ -604,4 +644,6 @@ class AuthPage(QWizardPage):
                 "username": self._simple_user.text().strip(),
                 "password": self._simple_pass.text().strip(),
             }
+        elif provider.auth_type == AuthType.NONE:
+            return {}
         return {"token": self._token}

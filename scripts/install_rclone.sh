@@ -20,6 +20,11 @@ cd "$TMP"
 curl -fsSL "https://downloads.rclone.org/rclone-current-linux-${RCLONE_ARCH}.zip" -o rclone.zip
 unzip -q rclone.zip
 RCLONE_DIR=$(find . -name "rclone" -type f | head -1)
+if [[ -z "$RCLONE_DIR" ]]; then
+    echo "ERROR: rclone binary not found in downloaded archive." >&2
+    rm -rf "$TMP"
+    exit 1
+fi
 
 echo "Installing rclone to $INSTALL_DIR..."
 sudo install -m 755 "$RCLONE_DIR" "$INSTALL_DIR/rclone"

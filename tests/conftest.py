@@ -21,16 +21,30 @@ def qcore_app():
 
 @pytest.fixture
 def tmp_config_dir(tmp_path, monkeypatch):
-    """Redirect all config/log directories to a temp path."""
-    import nubix.constants as const
+    """Redirect all config/log directories to a temp path.
 
-    monkeypatch.setattr(const, "CONFIG_DIR", tmp_path / "config")
-    monkeypatch.setattr(const, "REMOTES_DIR", tmp_path / "config" / "remotes")
-    monkeypatch.setattr(const, "RCLONE_CONFIG_DIR", tmp_path / "config" / "rclone")
-    monkeypatch.setattr(const, "LOG_DIR", tmp_path / "logs")
-    monkeypatch.setattr(const, "CACHE_DIR", tmp_path / "cache")
-    monkeypatch.setattr(const, "GLOBAL_CONFIG_FILE", tmp_path / "config" / "config.yaml")
-    monkeypatch.setattr(const, "VAULT_FILE", tmp_path / "config" / "vault.enc")
+    Consuming modules bind these paths at import time via
+    `from nubix.constants import …`, so patching nubix.constants alone is
+    not enough — the imported names inside each consumer must be patched
+    too, or the tests silently read/write the REAL user config.
+    """
+    import nubix.constants as const
+    import nubix.core.config_manager as cm
+    import nubix.core.credential_vault as cv
+
+    paths = {
+        "CONFIG_DIR": tmp_path / "config",
+        "REMOTES_DIR": tmp_path / "config" / "remotes",
+        "RCLONE_CONFIG_DIR": tmp_path / "config" / "rclone",
+        "LOG_DIR": tmp_path / "logs",
+        "CACHE_DIR": tmp_path / "cache",
+        "GLOBAL_CONFIG_FILE": tmp_path / "config" / "config.yaml",
+        "VAULT_FILE": tmp_path / "config" / "vault.enc",
+    }
+    for module in (const, cm, cv):
+        for name, value in paths.items():
+            if hasattr(module, name):
+                monkeypatch.setattr(module, name, value)
     return tmp_path
 
 

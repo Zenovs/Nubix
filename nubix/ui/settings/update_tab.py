@@ -149,16 +149,9 @@ class UpdateTab(QWidget):
         QTimer.singleShot(100, self._do_restart)
 
     def _do_restart(self):
-        appimage = os.environ.get("APPIMAGE")
-        if appimage:
-            os.execv(appimage, [appimage])
-        elif getattr(sys, "frozen", False):
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-        else:
-            import pathlib
+        from nubix.core.updater import restart_app
 
-            main_py = str(pathlib.Path(sys.argv[0]).resolve())
-            os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
+        restart_app()
 
     # ── Updater signal handlers ────────────────────────────────────────────────
 

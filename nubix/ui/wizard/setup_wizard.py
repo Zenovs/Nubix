@@ -67,6 +67,13 @@ class SetupWizard(QWizard):
 
         self.accepted.connect(self._on_accepted)
 
+    def done(self, result: int) -> None:
+        # QWizard only calls cleanupPage() on Back-navigation. Cancelling or
+        # closing the wizard mid-OAuth would otherwise leak the running
+        # `rclone authorize` process and keep port 53682 bound.
+        self._auth_page.cleanupPage()
+        super().done(result)
+
     def _on_accepted(self):
         """Called when the user clicks Finish. Saves the remote and optionally starts sync."""
         provider_id = self.field("provider_id") or ""

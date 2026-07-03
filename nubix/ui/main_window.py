@@ -222,7 +222,15 @@ class MainWindow(QMainWindow):
             self,
         )
         dlg._tabs.setCurrentIndex(tab)
-        dlg.exec()
+        self._settings_open = True
+        try:
+            dlg.exec()
+        finally:
+            self._settings_open = False
+
+    def is_settings_open(self) -> bool:
+        """True while the modal settings dialog is being shown."""
+        return getattr(self, "_settings_open", False)
 
     def _open_connections_settings(self, remote_id: str = ""):
         self.open_settings(tab=3)  # "☁  Connections" is tab index 3
@@ -259,6 +267,13 @@ class MainWindow(QMainWindow):
                     return
             self._sync.stop_all()
             event.accept()
+            # QuitOnLastWindowClosed is disabled (tray app), so accepting the
+            # close would only hide the window while timers, scheduler and
+            # syncs keep running. Quit explicitly — this fires aboutToQuit,
+            # which runs the full shutdown (unmounts, watcher stop, geometry).
+            from PySide6.QtWidgets import QApplication
+
+            QApplication.instance().quit()
 
     def _restore_geometry(self):
         geom = self._config.get("ui.window_geometry")

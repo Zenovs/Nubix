@@ -61,6 +61,12 @@ def _dir_size(path: Path) -> int:
     return total
 
 
+# Keeps unparented worker threads alive until they finish — a thread owned by
+# a card would be destroyed mid-run when the card is deleted (Qt hard-aborts
+# with "QThread: Destroyed while thread is still running").
+_RUNNING_THREADS: set[QThread] = set()
+
+
 class _CacheSizeThread(QThread):
     """Calculates VFS cache size for one remote in the background."""
 
@@ -254,7 +260,9 @@ class SyncStatusCard(QFrame):
         self._badge.set_status(status)
         is_syncing = status == JobStatus.SYNCING
         is_mounted = status == JobStatus.MOUNTED
-        busy = is_syncing or is_mounted
+        # PAUSED is busy too: the rclone process still exists (suspended), so
+        # a second Sync would double-start the same directory pair.
+        busy = is_syncing or is_mounted or status == JobStatus.PAUSED
         self._btn_sync.setEnabled(not busy)
         self._btn_stop.setEnabled(busy)
         if is_syncing:
@@ -278,6 +286,13 @@ class SyncStatusCard(QFrame):
                 self._cache_label.setText("not mounted")
                 self._cache_bar.setValue(0)
 
+    def update_remote(self, remote: RemoteConfig) -> None:
+        """Refresh the card after the remote's settings changed (e.g. new path)."""
+        self.remote = remote
+        provider_icon = _provider_icon(remote.provider_type)
+        self._name_label.setText(f"{provider_icon}  {remote.display_name}")
+        self._path_label.setText(remote.local_path)
+
     def update_progress(self, stats: TransferStats) -> None:
         pct = int(stats.percent)
         self._progress.setValue(max(0, min(100, pct)))
@@ -295,9 +310,16 @@ class SyncStatusCard(QFrame):
         """Kick off a background thread to measure VFS cache size."""
         if self._cache_thread and self._cache_thread.isRunning():
             return
-        self._cache_thread = _CacheSizeThread(self.remote.remote_id, self)
-        self._cache_thread.result.connect(self._on_cache_size)
-        self._cache_thread.start()
+        # No Qt parent: the card may be deleted (remote removed) while the
+        # scan runs. _RUNNING_THREADS keeps the thread alive until finished;
+        # the result connection dies automatically with the card.
+        thread = _CacheSizeThread(self.remote.remote_id)
+        _RUNNING_THREADS.add(thread)
+        thread.result.connect(self._on_cache_size)
+        thread.finished.connect(lambda t=thread: _RUNNING_THREADS.discard(t))
+        thread.finished.connect(thread.deleteLater)
+        self._cache_thread = thread
+        thread.start()
 
     def _on_cache_size(self, used_bytes: int) -> None:
         """Update cache label and bar from background result."""

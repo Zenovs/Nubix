@@ -31,7 +31,10 @@ class _ReaderThread(QThread):
     """Reads lines from a subprocess stream and emits them as signals."""
 
     line_received = Signal(str)
-    finished = Signal()
+    # Deliberately NOT named "finished": that would shadow QThread.finished
+    # (the thread-lifecycle signal) and this one fires from inside run(),
+    # i.e. before the thread has actually terminated.
+    eof_reached = Signal()
 
     def __init__(self, stream, parent=None):
         super().__init__(parent)
@@ -46,7 +49,7 @@ class _ReaderThread(QThread):
         except Exception as e:
             logger.debug("Reader thread error: %s", e)
         finally:
-            self.finished.emit()
+            self.eof_reached.emit()
 
 
 # rclone bisync emits this string when its listing files are missing.
@@ -94,8 +97,8 @@ class RcloneProcess(QObject):
 
         # Track when both readers are done before emitting finished
         self._readers_done = 0
-        self._stdout_reader.finished.connect(self._on_reader_done)
-        self._stderr_reader.finished.connect(self._on_reader_done)
+        self._stdout_reader.eof_reached.connect(self._on_reader_done)
+        self._stderr_reader.eof_reached.connect(self._on_reader_done)
 
         self._stdout_reader.start()
         self._stderr_reader.start()
@@ -160,6 +163,12 @@ class RcloneProcess(QObject):
 
     def stop(self):
         """Terminate the process gracefully."""
+        # A SIGSTOPped process queues SIGTERM until it is resumed — without
+        # SIGCONT a paused job would survive as a frozen orphan forever.
+        try:
+            os.kill(self._process.pid, signal.SIGCONT)
+        except (ProcessLookupError, PermissionError):
+            pass
         try:
             self._process.terminate()
         except ProcessLookupError:
@@ -167,6 +176,10 @@ class RcloneProcess(QObject):
 
     def kill(self):
         """Force-kill the process."""
+        try:
+            os.kill(self._process.pid, signal.SIGCONT)
+        except (ProcessLookupError, PermissionError):
+            pass
         try:
             self._process.kill()
         except ProcessLookupError:
@@ -195,22 +208,30 @@ class RcloneEngine(QObject):
 
     def check_version(self) -> str:
         """Return rclone version string."""
-        result = subprocess.run(
-            [self._binary, "version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        try:
+            result = subprocess.run(
+                [self._binary, "version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning("rclone version check failed: %s", e)
+            return "unknown"
         return result.stdout.splitlines()[0] if result.stdout else "unknown"
 
     def list_remotes(self) -> list[str]:
         """Return list of configured remote names from rclone config."""
-        result = subprocess.run(
-            [self._binary, "listremotes", "--config", str(RCLONE_CONFIG_FILE)],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
+        try:
+            result = subprocess.run(
+                [self._binary, "listremotes", "--config", str(RCLONE_CONFIG_FILE)],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning("rclone listremotes failed: %s", e)
+            return []
         # Only lines ending with ":" are valid remote names; any other output
         # (warnings, errors) is silently discarded.
         return [r.rstrip(":") for r in result.stdout.splitlines() if r.strip().endswith(":")]
@@ -218,20 +239,24 @@ class RcloneEngine(QObject):
     def list_remote_dirs(self, remote_id: str, remote_path: str = "") -> list[dict]:
         """List directories at a remote path. Returns list of {name, is_dir} dicts."""
         path = f"{remote_id}:{remote_path}"
-        result = subprocess.run(
-            [
-                self._binary,
-                "lsjson",
-                "--config",
-                str(RCLONE_CONFIG_FILE),
-                "--dirs-only",
-                "--no-modtime",
-                path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    self._binary,
+                    "lsjson",
+                    "--config",
+                    str(RCLONE_CONFIG_FILE),
+                    "--dirs-only",
+                    "--no-modtime",
+                    path,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning("lsjson failed for %s: %s", path, e)
+            return []
         if result.returncode != 0:
             logger.warning("lsjson failed: %s", result.stderr)
             return []
@@ -240,36 +265,96 @@ class RcloneEngine(QObject):
         except Exception:
             return []
 
+    def _obscure(self, value: str) -> Optional[str]:
+        """Obscure a password with `rclone obscure`, fed via stdin (not argv)."""
+        try:
+            result = subprocess.run(
+                [self._binary, "obscure", "-"],
+                input=value,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.error("rclone obscure failed: %s", e)
+            return None
+        if result.returncode != 0:
+            logger.error("rclone obscure failed with code %d", result.returncode)
+            return None
+        return result.stdout.strip()
+
     def configure_remote(self, remote_id: str, config_args: list[str]) -> bool:
         """
-        Configure a new rclone remote using rclone config create.
-        config_args example: ["gdrive", "--drive-client-id", "xxx", ...]
+        Configure a new rclone remote.
+        config_args is a flat list: [backend_type, key1, value1, key2, value2, …]
+
+        The section is written directly into Nubix's rclone config file
+        instead of shelling out to `rclone config create` — command-line
+        arguments are world-readable via /proc/<pid>/cmdline, so passing
+        passwords or tokens through argv would leak them to every local
+        process for the lifetime of the subprocess.
         """
-        cmd = [
-            self._binary,
-            "config",
-            "create",
-            remote_id,
-            *config_args,
-            "--config",
-            str(RCLONE_CONFIG_FILE),
-            "--non-interactive",
-            "--obscure",  # Let rclone obscure password-type fields before storing
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            logger.error("rclone config create failed: %s", result.stderr)
+        import configparser
+        import tempfile
+
+        if not config_args:
             return False
+        remote_type, *rest = config_args
+        if len(rest) % 2 != 0:
+            logger.error("configure_remote: malformed key/value list for %s", remote_id)
+            return False
+        options = dict(zip(rest[::2], rest[1::2]))
+
+        # Obscure password-type fields, matching `rclone config create --obscure`.
+        # "pass" is the only password-type key the provider registry emits.
+        if options.get("pass"):
+            obscured = self._obscure(options["pass"])
+            if obscured is None:
+                return False
+            options["pass"] = obscured
+
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            if RCLONE_CONFIG_FILE.exists():
+                parser.read(RCLONE_CONFIG_FILE)
+        except Exception as e:
+            logger.error("Could not read rclone config: %s", e)
+            return False
+
+        parser[remote_id] = {"type": remote_type, **options}
+
+        try:
+            RCLONE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=RCLONE_CONFIG_FILE.parent, prefix=".rclone-conf-")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    parser.write(f)
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, RCLONE_CONFIG_FILE)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+        except Exception as e:
+            logger.error("Could not write rclone config: %s", e)
+            return False
+        logger.info("Configured remote %s (type %s)", remote_id, remote_type)
         return True
 
     def delete_remote(self, remote_id: str) -> bool:
         """Remove a remote from rclone config."""
-        result = subprocess.run(
-            [self._binary, "config", "delete", remote_id, "--config", str(RCLONE_CONFIG_FILE)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        try:
+            result = subprocess.run(
+                [self._binary, "config", "delete", remote_id, "--config", str(RCLONE_CONFIG_FILE)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.error("rclone config delete failed: %s", e)
+            return False
         return result.returncode == 0
 
     # ------------------------------------------------------------------
@@ -547,27 +632,17 @@ class RcloneEngine(QObject):
             found = shutil.which(binary)
             if not found:
                 continue
-            result = subprocess.run(
-                [found, "-u", str(mountpoint)],
-                capture_output=True,
-                timeout=10,
-            )
+            try:
+                result = subprocess.run(
+                    [found, "-u", str(mountpoint)],
+                    capture_output=True,
+                    timeout=10,
+                )
+            except (subprocess.TimeoutExpired, OSError) as e:
+                logger.warning("%s -u %s failed: %s", binary, mountpoint, e)
+                continue
             if result.returncode == 0:
                 logger.info("Unmounted %s via %s", mountpoint, binary)
                 return True
         logger.warning("Could not unmount %s — fusermount3/fusermount not found", mountpoint)
         return False
-
-    def set_bandwidth_limit(self, limit: str) -> bool:
-        """Set bandwidth limit via rclone RC (requires --rc to be running)."""
-        try:
-            import requests
-
-            resp = requests.post(
-                "http://localhost:5572/core/bwlimit",
-                json={"rate": limit},
-                timeout=5,
-            )
-            return resp.status_code == 200
-        except Exception:
-            return False

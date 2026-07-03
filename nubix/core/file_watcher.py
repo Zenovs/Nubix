@@ -53,6 +53,7 @@ class FileWatcher(QObject):
         self._watches: dict[str, object] = {}  # remote_id → watchdog watch handle
         self._timers: dict[str, QTimer] = {}  # remote_id → debounce QTimer
         self._paths: dict[str, Path] = {}  # remote_id → local_path
+        self._suspended: set[str] = set()  # remote_ids whose events are ignored
         self._started = False
 
         # Connect internal signal to debounce reset — always runs on main thread
@@ -126,6 +127,21 @@ class FileWatcher(QObject):
     def watched_ids(self) -> list[str]:
         return list(self._watches.keys())
 
+    def suspend_watch(self, remote_id: str) -> None:
+        """Ignore FS events for *remote_id* (e.g. while its own sync writes files).
+
+        Without this, every file rclone bisync downloads would re-arm the
+        debounce and trigger a redundant sync right after the previous one.
+        """
+        self._suspended.add(remote_id)
+        timer = self._timers.get(remote_id)
+        if timer:
+            timer.stop()
+
+    def resume_watch(self, remote_id: str) -> None:
+        """Re-enable FS events for *remote_id*. Events during suspension are dropped."""
+        self._suspended.discard(remote_id)
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
@@ -137,6 +153,8 @@ class FileWatcher(QObject):
     @Slot(str)
     def _reset_debounce(self, remote_id: str) -> None:
         """Restart the debounce timer (always runs on Qt main thread)."""
+        if remote_id in self._suspended:
+            return
         if remote_id not in self._timers:
             timer = QTimer(self)
             timer.setSingleShot(True)
@@ -153,8 +171,8 @@ class FileWatcher(QObject):
 class _DebounceHandler:
     """Watchdog event handler — calls callback on any relevant FS event."""
 
-    # Temp/editor file suffixes to ignore
-    _IGNORE = (".swp", ".swpx", ".tmp", ".part", "~")
+    # Temp/editor file suffixes to ignore (".partial" is rclone's own temp suffix)
+    _IGNORE = (".swp", ".swpx", ".tmp", ".part", ".partial", "~")
 
     def __init__(self, remote_id: str, callback):
         self._remote_id = remote_id

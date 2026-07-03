@@ -1,5 +1,54 @@
 # Changelog
 
+## [4.3.0] — 2026-07-03
+
+### Stability & data safety
+
+- Paused syncs are no longer silently double-started: a PAUSED job now counts as active, so the 5-minute auto-sync, the scheduler and the Sync button can no longer launch a second bisync on the same directory pair (risk of baseline corruption and wrong deletes)
+- Stopping a paused sync now works: SIGCONT is sent before SIGTERM, so no frozen rclone processes are left behind after Pause → Stop or Pause → Quit
+- Stopping a sync no longer disconnects the engine's bisync-state handler — critical bisync exits (code 2) reliably reset the baseline for the next `--resync`
+- Mount watcher threads are parented and clean up via `deleteLater` — fixes a hard crash ("QThread: Destroyed while thread is still running") when unmounting slow remotes; same fix for the VFS-cache-size scanner when a remote is deleted mid-scan
+- Updater refuses `git reset --hard` when the install directory has uncommitted changes or local commits, and no longer latches onto unrelated parent git repositories — protects developer working trees from silent data loss
+- AppImage updates are applied atomically (staged next to the binary, then `os.replace`) instead of a cross-filesystem copy that could corrupt the binary on power loss
+- Global config is saved atomically (temp file + rename); defaults are deep-copied so saved settings can no longer mutate the built-in defaults
+- Credential vault: on systems without `/etc/machine-id` a persistent key file is used instead of a fresh random key per launch (which made the vault unreadable on every restart); fixed a fd double-close that masked save errors
+- All rclone helper subprocess calls (`version`, `listremotes`, `lsjson`, `config delete`, `fusermount`) now handle timeouts/OS errors instead of crashing the calling UI flow
+- Overnight schedule windows (e.g. 22:00–06:00) now work — previously they never matched and the sync silently never ran
+
+### Security
+
+- Credentials are no longer passed to `rclone config create` via command-line arguments (world-readable via `ps`/`/proc` while running). Remote sections are written directly to Nubix's rclone config with 0600 permissions; passwords are obscured via `rclone obscure` fed over stdin
+
+### App behavior
+
+- "Quit anyway?" now actually quits: the app no longer keeps syncing invisibly in the background after closing the window with minimize-to-tray disabled; the full shutdown (unmounts, watcher stop, geometry save) runs
+- Restart after an update now runs the normal shutdown first and preserves CLI arguments (e.g. `--background`); both restart paths share one implementation
+- The file watcher is suspended while a remote's own sync is writing files — no more redundant follow-up sync (and remote API calls) after every completed sync; rclone's `.partial` temp files are ignored
+- Update dialog no longer stacks/duplicates: the background check won't pop a modal over the Settings → Updates tab, and only one dialog can be open
+- "Pause All" becomes "Resume All" while jobs are paused — paused jobs can now actually be resumed from the dashboard
+- Dashboard: "No connections yet" hint no longer shows alongside real connection cards at startup; cards update live after "Change Path" (and the wrong "Restart Nubix" notice is gone)
+- Setup wizard: cancelling mid-OAuth now kills the `rclone authorize` process (frees port 53682)
+
+### Providers
+
+- Azure Blob/Files now use the correct `account`/`key` credentials (previously S3-style keys were written, remotes never worked)
+- Mail.ru uses username/password instead of a non-existent OAuth flow
+- Local Disk / Memory no longer demand made-up credentials
+- Removed providers that could not work through this wizard: OpenStack Swift, iCloud Drive, NFS, Pixeldrain, Linkbox, Quatrix, crypt/compress/chunker/union
+- OAuth works with old distro rclone again: `--auth-no-open-browser` is probed and only passed when supported (Ubuntu 20.04 ships rclone 1.50)
+
+### Installer & packaging
+
+- `install.sh` no longer masks apt failures (previously reported success even when packages failed to install), is idempotent on re-runs (clone via temp dir), and upgrades rclone from rclone.org when the distro version lacks `bisync`
+- `packaging/nubix.service` starts the launcher from `~/.local/bin` (was a nonexistent `/usr/local/bin` path)
+- `pyproject.toml`: fixed invalid build backend (`pip install .` was broken), version is now read from `nubix/__init__.py` (was stuck at 4.1.8), added missing `watchdog` dependency
+
+### Internal
+
+- Test suite no longer reads/writes the real user config in `~/.config/nubix` (fixture patched the wrong module)
+- New regression tests: sync lifecycle (pause/stop/double-start), overnight time windows, config writing (44 tests total)
+- Renamed custom Qt signals that shadowed the built-in `QThread.finished`; removed dead rclone-RC bandwidth code
+
 ## [0.3.14] — 2026-03-26
 
 ### Changes

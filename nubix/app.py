@@ -71,6 +71,13 @@ class NubixApp:
         self._file_watcher = FileWatcher()
         if self._sync_manager:
             self._file_watcher.sync_needed.connect(self._on_watcher_sync_needed)
+            # Suspend the watcher while a job's own bisync writes into the
+            # watched directory — otherwise every sync immediately schedules
+            # the next one (wasted rclone runs and remote API calls).
+            self._sync_manager.job_started.connect(self._file_watcher.suspend_watch)
+            self._sync_manager.job_finished.connect(
+                lambda jid, code: self._file_watcher.resume_watch(jid)
+            )
 
         self._scheduler = Scheduler()
         if self._sync_manager:
@@ -272,8 +279,18 @@ class NubixApp:
     def _on_update_available(self, release):
         from nubix.ui.update_dialog import UpdateDialog
 
-        dlg = UpdateDialog(release, self._updater, self._window)
-        dlg.exec()
+        # The Settings → Updates tab handles this signal itself; popping a
+        # modal on top of it would create two competing download paths.
+        if self._window and self._window.is_settings_open():
+            return
+        # Never stack a second dialog (signal fires on every periodic check).
+        if getattr(self, "_update_dialog", None) is not None:
+            return
+        self._update_dialog = UpdateDialog(release, self._updater, self._window)
+        try:
+            self._update_dialog.exec()
+        finally:
+            self._update_dialog = None
 
     def _shutdown(self):
         logger.info("Nubix shutting down…")
@@ -355,9 +372,6 @@ class _NullEngine:
 
     def start_sync(self, job):
         raise RcloneNotFoundError()
-
-    def set_bandwidth_limit(self, limit):
-        return False
 
 
 class _NullSignal:

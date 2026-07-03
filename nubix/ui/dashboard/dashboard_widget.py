@@ -153,6 +153,7 @@ class DashboardWidget(QWidget):
     def _connect_signals(self):
         self._registry.remote_added.connect(self._on_remote_added)
         self._registry.remote_removed.connect(self._on_remote_removed)
+        self._registry.remote_updated.connect(self._on_remote_updated)
         self._sync.job_status_changed.connect(self._on_status_changed)
         self._sync.progress_updated.connect(self._on_progress)
         self._sync.file_transferred.connect(self._on_file_transferred)
@@ -176,9 +177,9 @@ class DashboardWidget(QWidget):
         card.settings_requested.connect(self._open_remote_settings)
         self._cards[rc.remote_id] = card
 
-        # Remove empty label on first card
-        if self._empty_label.isVisible():
-            self._empty_label.hide()
+        # isVisible() would be False while the dashboard itself is not shown
+        # yet (startup), so hide unconditionally once a card exists.
+        self._empty_label.hide()
 
         # Insert before the stretch (which is second-to-last) and ascii footer (last)
         count = self._cards_layout.count()
@@ -186,6 +187,11 @@ class DashboardWidget(QWidget):
 
     def _on_remote_added(self, rc: RemoteConfig):
         self._add_card(rc)
+
+    def _on_remote_updated(self, rc: RemoteConfig):
+        card = self._cards.get(rc.remote_id)
+        if card:
+            card.update_remote(rc)
 
     def _on_remote_removed(self, remote_id: str):
         card = self._cards.pop(remote_id, None)
@@ -200,6 +206,7 @@ class DashboardWidget(QWidget):
         card = self._cards.get(job_id)
         if card:
             card.update_status(JobStatus(status_value))
+        self._update_pause_button()
 
     def _on_progress(self, job_id: str, stats: TransferStats):
         card = self._cards.get(job_id)
@@ -258,8 +265,22 @@ class DashboardWidget(QWidget):
                 self._start_remote(rc.remote_id)
 
     def _pause_all(self):
-        for job_id in self._sync.active_job_ids():
-            self._sync.pause_job(job_id)
+        """Toggle: pause all running jobs, or resume them if any are paused."""
+        active = self._sync.active_job_ids()
+        paused = [jid for jid in active if self._sync.get_status(jid) == JobStatus.PAUSED]
+        if paused:
+            for job_id in paused:
+                self._sync.resume_job(job_id)
+        else:
+            for job_id in active:
+                self._sync.pause_job(job_id)
+        self._update_pause_button()
+
+    def _update_pause_button(self):
+        any_paused = any(
+            self._sync.get_status(jid) == JobStatus.PAUSED for jid in self._sync.active_job_ids()
+        )
+        self._btn_pause_all.setText("▶   Resume All" if any_paused else "⏸   Pause All")
 
     def _open_remote_settings(self, remote_id: str):
         self.remote_settings_requested.emit(remote_id)

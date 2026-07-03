@@ -12,6 +12,7 @@ class AuthType(str, Enum):
     S3 = "s3"
     SFTP = "sftp"
     SIMPLE = "simple"  # email + password (MEGA, etc.)
+    NONE = "none"  # no credentials needed (local disk, memory)
 
 
 class BaseProvider(ABC):

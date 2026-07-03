@@ -28,6 +28,32 @@ GITHUB_API_URL = "https://api.github.com/repos/Zenovs/Nubix/releases/latest"
 ASSET_NAME_PATTERN = "Nubix-{version}-x86_64.AppImage"
 
 
+def restart_app() -> None:
+    """Re-exec the running Nubix binary, preserving CLI args (e.g. --background).
+
+    os.execv replaces the process without returning to the Qt event loop, so
+    aboutToQuit would never fire — emit it first so the normal shutdown runs
+    (stop syncs, unmount FUSE, save window geometry).
+    """
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is not None:
+        try:
+            app.aboutToQuit.emit()
+        except Exception:
+            logger.warning("Shutdown handlers failed before restart", exc_info=True)
+
+    appimage = os.environ.get("APPIMAGE")
+    if appimage:
+        os.execv(appimage, [appimage] + sys.argv[1:])
+    elif getattr(sys, "frozen", False):
+        os.execv(sys.executable, [sys.executable] + sys.argv[1:])
+    else:
+        main_py = str(Path(sys.argv[0]).resolve())
+        os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
+
+
 def _parse_version(v: str) -> tuple[int, ...]:
     """Convert '1.2.3' to (1, 2, 3) for comparison."""
     try:
@@ -108,6 +134,23 @@ class GitPullThread(QThread):
 
     def _update_via_git(self):
         try:
+            # `git reset --hard` is destructive — refuse to run it over
+            # uncommitted work (e.g. a developer clone installed with pip -e).
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=no"],
+                cwd=self._repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if status.returncode == 0 and status.stdout.strip():
+                logger.warning("Refusing to update: uncommitted changes in %s", self._repo_dir)
+                self.pull_failed.emit(
+                    f"The install directory {self._repo_dir} has uncommitted local "
+                    "changes. Commit, stash or discard them, then update again."
+                )
+                return
+
             fetch = subprocess.run(
                 ["git", "fetch", "--depth=1", "origin", "main"],
                 cwd=self._repo_dir,
@@ -119,6 +162,22 @@ class GitPullThread(QThread):
                 msg = (fetch.stderr or fetch.stdout).strip()
                 logger.error("git fetch failed: %s", msg)
                 self.pull_failed.emit(f"git fetch failed: {msg}")
+                return
+
+            # Local commits not on origin/main would be discarded by the reset.
+            ahead = subprocess.run(
+                ["git", "rev-list", "--count", "origin/main..HEAD"],
+                cwd=self._repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if ahead.returncode == 0 and ahead.stdout.strip() not in ("", "0"):
+                logger.warning("Refusing to update: local commits ahead in %s", self._repo_dir)
+                self.pull_failed.emit(
+                    f"The install directory {self._repo_dir} has local commits that "
+                    "are not on origin/main. Push or remove them, then update again."
+                )
                 return
 
             reset = subprocess.run(
@@ -192,7 +251,9 @@ class DownloadThread(QThread):
     """Downloads a file from a URL with progress reporting."""
 
     progress = Signal(int)  # 0–100
-    finished = Signal(str)  # path to downloaded file
+    # Not named "finished" — that would shadow the built-in QThread.finished
+    # lifecycle signal (and this one fires from inside run()).
+    download_finished = Signal(str)  # path to downloaded file
     failed = Signal(str)  # error message
 
     def __init__(self, url: str, dest: Path, parent=None):
@@ -213,7 +274,7 @@ class DownloadThread(QThread):
                         done += len(chunk)
                         if total:
                             self.progress.emit(int(done / total * 100))
-            self.finished.emit(str(self._dest))
+            self.download_finished.emit(str(self._dest))
         except Exception as e:
             logger.error("Download failed: %s", e)
             self.failed.emit(str(e))
@@ -292,7 +353,7 @@ class Updater(QObject):
         dest = Path(self._tmp_dir) / Path(url).name
         self._download_thread = DownloadThread(url, dest, self)
         self._download_thread.progress.connect(self.download_progress)
-        self._download_thread.finished.connect(
+        self._download_thread.download_finished.connect(
             lambda path: self._apply_update(Path(path), current_path)
         )
         self._download_thread.failed.connect(self._on_download_failed)
@@ -335,11 +396,15 @@ class Updater(QObject):
         if os.environ.get("APPIMAGE") or getattr(sys, "frozen", False):
             return None
 
-        # Walk up from this file to find .git directory (git clone installs)
+        # Walk up from this file to find .git directory (git clone installs).
+        # Require the nubix package alongside .git so the walk cannot latch
+        # onto an unrelated parent repository that merely contains the venv.
         candidate = Path(__file__).resolve().parent
         for _ in range(6):
             if (candidate / ".git").exists():
-                return candidate
+                if (candidate / "nubix" / "__init__.py").exists():
+                    return candidate
+                return None
             candidate = candidate.parent
 
         # Fallback: standard install location created by install.sh (no .git)
@@ -363,10 +428,15 @@ class Updater(QObject):
             # Make the downloaded file executable
             downloaded.chmod(downloaded.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
-            # Atomic replace: rename new -> current
+            # The download lives in /tmp, usually a different filesystem than
+            # the install path — a direct move would be copy-then-delete and a
+            # crash mid-copy would corrupt the running binary. Stage the file
+            # next to the target first, then swap atomically with os.replace.
             import shutil
 
-            shutil.move(str(downloaded), str(current))
+            staged = current.parent / (current.name + ".new")
+            shutil.copy2(downloaded, staged)
+            os.replace(staged, current)
             logger.info("Update applied: %s -> %s", downloaded, current)
 
             self._cleanup_tmp()

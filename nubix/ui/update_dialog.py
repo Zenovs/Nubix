@@ -108,17 +108,8 @@ class UpdateDialog(QDialog):
         QApplication.processEvents()  # flush the label update to screen
 
         def _do_restart():
-            import os
-            import sys
+            from nubix.core.updater import restart_app
 
-            appimage = os.environ.get("APPIMAGE")
-            if appimage:
-                os.execv(appimage, [appimage] + sys.argv[1:])
-            elif getattr(sys, "frozen", False):
-                os.execv(sys.executable, [sys.executable] + sys.argv)
-            else:
-                # Source install: re-exec python with the original main.py
-                main_py = str(__import__("pathlib").Path(sys.argv[0]).resolve())
-                os.execv(sys.executable, [sys.executable, main_py] + sys.argv[1:])
+            restart_app()
 
         QTimer.singleShot(400, _do_restart)

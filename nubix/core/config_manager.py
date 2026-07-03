@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import logging
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -121,23 +124,38 @@ class ConfigManager(QObject):
             d.mkdir(parents=True, exist_ok=True)
 
     def _load(self) -> None:
+        # deepcopy — a shallow copy would share the nested dicts, so set()
+        # would silently mutate _DEFAULT_CONFIG for the process lifetime.
+        defaults = copy.deepcopy(_DEFAULT_CONFIG)
         if GLOBAL_CONFIG_FILE.exists():
             try:
                 with open(GLOBAL_CONFIG_FILE) as f:
                     loaded = yaml.safe_load(f) or {}
-                self._config = self._deep_merge(_DEFAULT_CONFIG.copy(), loaded)
+                self._config = self._deep_merge(defaults, loaded)
                 logger.debug("Loaded config from %s", GLOBAL_CONFIG_FILE)
             except Exception as e:
                 logger.error("Failed to load config: %s — using defaults", e)
-                self._config = _DEFAULT_CONFIG.copy()
+                self._config = defaults
         else:
-            self._config = _DEFAULT_CONFIG.copy()
+            self._config = defaults
             self._save()
 
     def _save(self) -> None:
+        # Write to a sibling temp file, then rename atomically — a crash
+        # mid-write must not truncate the only copy of the config.
         try:
-            with open(GLOBAL_CONFIG_FILE, "w") as f:
-                yaml.safe_dump(self._config, f, default_flow_style=False, allow_unicode=True)
+            GLOBAL_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=GLOBAL_CONFIG_FILE.parent, prefix=".config-")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    yaml.safe_dump(self._config, f, default_flow_style=False, allow_unicode=True)
+                os.replace(tmp, GLOBAL_CONFIG_FILE)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
         except Exception as e:
             logger.error("Failed to save config: %s", e)
 

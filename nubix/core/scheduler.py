@@ -30,7 +30,7 @@ def _is_in_window(windows: list[TimeWindow]) -> bool:
     weekday = now.weekday()  # 0=Monday
     current_time = now.time()
     for w in windows:
-        if weekday in w.days and w.start_time <= current_time <= w.end_time:
+        if weekday in w.days and w.contains(current_time):
             return True
     return False
 

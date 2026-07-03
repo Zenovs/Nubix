@@ -114,10 +114,12 @@ class RemotesTab(QWidget):
 
         # Refresh list item text
         item.setText(f"{rc.display_name}  ({new_path})")
+        # remote_updated is handled live (watcher, scheduler, dashboard card) —
+        # no restart needed.
         QMessageBox.information(
             self,
             "Path Updated",
-            f"Local folder changed to:\n{new_path}\n\nRestart Nubix to apply the change.",
+            f"Local folder changed to:\n{new_path}",
         )
 
     def _remove(self):

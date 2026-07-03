@@ -110,10 +110,30 @@ check_pkg python3-secretstorage
 
 if [[ ${#PKGS_TO_INSTALL[@]} -gt 0 ]]; then
     info "Installiere: ${PKGS_TO_INSTALL[*]}"
-    sudo apt-get install -y "${PKGS_TO_INSTALL[@]}" 2>&1 | grep -E "(Installiere|Installing|Unpacking)" | sed 's/^/  /' || true
-    success "System-Pakete installiert."
+    APT_LOG=$(mktemp)
+    if sudo apt-get install -y "${PKGS_TO_INSTALL[@]}" >"$APT_LOG" 2>&1; then
+        grep -E "(Installiere|Installing|Unpacking)" "$APT_LOG" | sed 's/^/  /' || true
+        rm -f "$APT_LOG"
+        success "System-Pakete installiert."
+    else
+        tail -n 20 "$APT_LOG" | sed 's/^/  /'
+        rm -f "$APT_LOG"
+        error "apt-get install ist fehlgeschlagen — siehe Ausgabe oben."
+    fi
 else
     success "Alle System-Pakete bereits vorhanden."
+fi
+
+# ---- rclone-Version prüfen ---------------------------------
+# Nubix synchronisiert mit `rclone bisync` (ab rclone 1.58). Distro-Pakete
+# sind oft älter (Ubuntu 20.04: 1.50) — dann aktuelles rclone nachinstallieren.
+if ! rclone help bisync &>/dev/null; then
+    warn "Das installierte rclone ist zu alt (kein bisync) — installiere aktuelles rclone von rclone.org..."
+    if curl -fsSL https://rclone.org/install.sh | sudo bash >/dev/null 2>&1; then
+        success "rclone aktualisiert: $(rclone version 2>/dev/null | head -1)"
+    else
+        error "rclone-Aktualisierung fehlgeschlagen. Bitte manuell installieren: https://rclone.org/install/"
+    fi
 fi
 
 # ---- Nubix herunterladen -----------------------------------
@@ -171,15 +191,20 @@ else
     warn "Kein AppImage-Release gefunden — installiere aus Quellcode."
     info "Lade Quellcode herunter..."
 
-    if command -v git &>/dev/null; then
-        if [[ -d "$INSTALL_DIR/.git" ]]; then
-            git -C "$INSTALL_DIR" pull --quiet
-        else
-            git clone --quiet --depth=1 https://github.com/Zenovs/Nubix.git "$INSTALL_DIR"
-        fi
-    else
+    if ! command -v git &>/dev/null; then
         sudo apt-get install -y git -qq
-        git clone --quiet --depth=1 https://github.com/Zenovs/Nubix.git "$INSTALL_DIR"
+    fi
+
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+        git -C "$INSTALL_DIR" fetch --quiet --depth=1 origin main
+        git -C "$INSTALL_DIR" reset --quiet --hard origin/main
+    else
+        # $INSTALL_DIR existiert bereits (uninstall.sh, alte AppImages) —
+        # git clone verweigert nicht-leere Ziele, daher über ein Temp-Verzeichnis.
+        TMP_CLONE=$(mktemp -d)
+        git clone --quiet --depth=1 https://github.com/Zenovs/Nubix.git "$TMP_CLONE/nubix"
+        cp -a "$TMP_CLONE/nubix/." "$INSTALL_DIR/"
+        rm -rf "$TMP_CLONE"
     fi
     success "Quellcode heruntergeladen."
 

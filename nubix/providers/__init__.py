@@ -37,13 +37,18 @@ class GenericProvider(BaseProvider):
             args += ["user", username]
             args += ["pass", credentials.get("password", "")]
         elif self.auth_type == AuthType.S3:
-            args += ["provider", credentials.get("provider", "AWS")]
-            args += ["access_key_id", credentials.get("access_key", "")]
-            args += ["secret_access_key", credentials.get("secret_key", "")]
-            if credentials.get("region"):
-                args += ["region", credentials["region"]]
-            if credentials.get("endpoint"):
-                args += ["endpoint", credentials["endpoint"]]
+            if self.provider_id in ("azureblob", "azurefiles"):
+                # Azure backends take account/key, not S3-style credentials.
+                args += ["account", credentials.get("access_key", "")]
+                args += ["key", credentials.get("secret_key", "")]
+            else:
+                args += ["provider", credentials.get("provider", "AWS")]
+                args += ["access_key_id", credentials.get("access_key", "")]
+                args += ["secret_access_key", credentials.get("secret_key", "")]
+                if credentials.get("region"):
+                    args += ["region", credentials["region"]]
+                if credentials.get("endpoint"):
+                    args += ["endpoint", credentials["endpoint"]]
         elif self.auth_type == AuthType.SFTP:
             args += ["host", credentials.get("host", "")]
             args += ["user", credentials.get("username", "")]
@@ -56,6 +61,8 @@ class GenericProvider(BaseProvider):
         elif self.auth_type == AuthType.SIMPLE:
             args += ["user", credentials.get("username", "")]
             args += ["pass", credentials.get("password", "")]
+        elif self.auth_type == AuthType.NONE:
+            pass  # local/memory need no credentials — just the backend type
         elif self.auth_type == AuthType.OAUTH2:
             # Google Drive requires scope to be set explicitly so rclone gets
             # full read/write access instead of prompting interactively.
@@ -94,36 +101,32 @@ _ALL: list[tuple[str, str, str, AuthType]] = [
     ("storj", "Storj DCS", "💠", AuthType.S3),
     ("wasabi", "Wasabi", "🟢", AuthType.S3),
     ("minio", "MinIO (S3)", "🔴", AuthType.S3),
-    ("swift", "OpenStack Swift", "💨", AuthType.OAUTH2),
     # ── Scandinavian / European ──
     ("jottacloud", "Jottacloud", "🇳🇴", AuthType.OAUTH2),
     ("yandex", "Yandex Disk", "🔴", AuthType.OAUTH2),
-    ("mailru", "Mail.ru Cloud", "📧", AuthType.OAUTH2),
+    ("mailru", "Mail.ru Cloud", "📧", AuthType.SIMPLE),
     ("zoho", "Zoho WorkDrive", "🔵", AuthType.OAUTH2),
     # ── Other cloud ──
     ("mega", "MEGA", "🔴", AuthType.SIMPLE),
     ("putio", "Put.io", "⚫", AuthType.OAUTH2),
     ("premiumizeme", "Premiumize.me", "🟤", AuthType.OAUTH2),
     ("fichier", "1Fichier", "📄", AuthType.SIMPLE),
-    ("pixeldrain", "Pixeldrain", "🟡", AuthType.OAUTH2),
-    ("linkbox", "Linkbox", "🔗", AuthType.OAUTH2),
-    ("quatrix", "Quatrix (Maytech)", "🟣", AuthType.OAUTH2),
-    ("imagekit", "ImageKit.io", "🖼", AuthType.S3),
-    ("iclouddrive", "iCloud Drive", "🍎", AuthType.OAUTH2),
     # ── Network protocols ──
     ("sftp", "SFTP / SSH", "🔑", AuthType.SFTP),
     ("ftp", "FTP", "📡", AuthType.SFTP),
     ("smb", "SMB / Windows Share", "💾", AuthType.SFTP),
-    ("nfs", "NFS", "🖥", AuthType.SFTP),
-    # ── Encryption / Virtual ──
-    ("crypt", "Rclone Crypt (encrypt)", "🔐", AuthType.SIMPLE),
-    ("compress", "Rclone Compress", "🗜", AuthType.SIMPLE),
-    ("chunker", "Rclone Chunker", "✂", AuthType.SIMPLE),
-    ("union", "Rclone Union (combine)", "🔀", AuthType.SIMPLE),
     # ── Local / Testing ──
-    ("local", "Local Disk / External Drive", "💻", AuthType.SIMPLE),
-    ("memory", "In-Memory (testing)", "🧠", AuthType.SIMPLE),
+    ("local", "Local Disk / External Drive", "💻", AuthType.NONE),
+    ("memory", "In-Memory (testing)", "🧠", AuthType.NONE),
 ]
+
+# Intentionally NOT offered (they cannot work with this wizard):
+#   swift        — needs an auth endpoint + tenant form, has no OAuth flow
+#   iclouddrive  — requires interactive 2FA that --non-interactive can't do
+#   nfs          — not an rclone backend
+#   pixeldrain/linkbox/quatrix — use API keys/tokens, not OAuth
+#   crypt/compress/chunker/union — wrap another remote, which the wizard
+#                                  has no way to select
 
 PROVIDER_REGISTRY: dict[str, GenericProvider] = {
     pid: GenericProvider(pid, name, icon, auth) for pid, name, icon, auth in _ALL

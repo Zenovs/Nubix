@@ -77,8 +77,13 @@ class MountManager(QObject):
             self.mount_failed.emit(remote_id, str(e))
             return
 
-        watcher = _MountWatcher(proc)
+        # Parent the watcher to the manager so it cannot be garbage-collected
+        # while its OS thread is still running (Qt aborts the process on
+        # "QThread: Destroyed while thread is still running").  It deletes
+        # itself once the thread has actually finished.
+        watcher = _MountWatcher(proc, parent=self)
         watcher.exited.connect(lambda code, rid=remote_id: self._on_exited(rid, code))
+        watcher.finished.connect(watcher.deleteLater)
         watcher.start()
 
         self._mounts[remote_id] = (proc, watcher, mountpoint)
@@ -100,7 +105,9 @@ class MountManager(QObject):
             except ProcessLookupError:
                 pass
 
-        watcher.quit()
+        # The watcher thread ends on its own once the mount process exits
+        # (it is blocked in process.wait(), so quit() would be a no-op);
+        # deleteLater via its finished signal handles cleanup.
         self._emit_status(remote_id, JobStatus.IDLE)
         logger.info("Unmounted %s", remote_id)
 
@@ -141,11 +148,15 @@ class MountManager(QObject):
             found = shutil.which(binary)
             if not found:
                 continue
-            result = subprocess.run(
-                [found, "-u", "-z", str(mountpoint)],
-                capture_output=True,
-                timeout=5,
-            )
+            try:
+                result = subprocess.run(
+                    [found, "-u", "-z", str(mountpoint)],
+                    capture_output=True,
+                    timeout=5,
+                )
+            except (subprocess.TimeoutExpired, OSError) as e:
+                logger.warning("Stale-mount cleanup at %s failed: %s", mountpoint, e)
+                return
             if result.returncode == 0:
                 logger.info("Cleaned up stale mount at %s", mountpoint)
             # returncode != 0 just means nothing was mounted there — that's fine

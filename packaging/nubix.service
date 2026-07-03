@@ -5,7 +5,8 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/nubix --background
+# install.sh legt den Launcher unter ~/.local/bin ab (%h = Home des Nutzers)
+ExecStart=%h/.local/bin/nubix --background
 Restart=on-failure
 RestartSec=5
 

@@ -28,17 +28,39 @@ class JobStatus(str, Enum):
 
 @dataclass
 class TimeWindow:
-    """A recurring time window during which syncing is allowed."""
+    """A recurring time window during which syncing is allowed.
+
+    A window whose start is later than its end (e.g. 22:00–06:00) wraps past
+    midnight: it matches late-evening and early-morning times on its weekdays.
+    """
 
     days: list[int]  # 0=Monday … 6=Sunday
     start_time: time
     end_time: time
 
+    def contains(self, t: time) -> bool:
+        """Return True if *t* falls inside this window (handles overnight wrap)."""
+        if self.start_time <= self.end_time:
+            return self.start_time <= t <= self.end_time
+        return t >= self.start_time or t <= self.end_time
+
+    def _minute_intervals(self) -> list[tuple[int, int]]:
+        """The window as minute-of-day intervals; overnight windows split in two."""
+        s = self.start_time.hour * 60 + self.start_time.minute
+        e = self.end_time.hour * 60 + self.end_time.minute
+        if s <= e:
+            return [(s, e)]
+        return [(s, 24 * 60), (0, e)]
+
     def overlaps(self, other: "TimeWindow") -> bool:
         common_days = set(self.days) & set(other.days)
         if not common_days:
             return False
-        return self.start_time < other.end_time and other.start_time < self.end_time
+        return any(
+            a_start < b_end and b_start < a_end
+            for a_start, a_end in self._minute_intervals()
+            for b_start, b_end in other._minute_intervals()
+        )
 
 
 @dataclass
