@@ -174,12 +174,22 @@ class _DebounceHandler:
     # Temp/editor file suffixes to ignore (".partial" is rclone's own temp suffix)
     _IGNORE = (".swp", ".swpx", ".tmp", ".part", ".partial", "~")
 
+    # Read-only events must not arm the debounce: merely browsing the sync
+    # folder (file manager, backup tools, rclone's own listing scans, the
+    # observer building its recursive watches) opens files/dirs without
+    # writing — triggering a sync for that is pure waste.
+    _IGNORE_EVENT_TYPES = ("opened", "closed_no_write")
+
     def __init__(self, remote_id: str, callback):
         self._remote_id = remote_id
         self._callback = callback
 
     def dispatch(self, event) -> None:
+        if getattr(event, "event_type", "") in self._IGNORE_EVENT_TYPES:
+            return
         src = getattr(event, "src_path", "")
+        if isinstance(src, bytes):
+            src = src.decode("utf-8", errors="replace")
         if any(src.endswith(s) for s in self._IGNORE):
             return
         self._callback(self._remote_id)

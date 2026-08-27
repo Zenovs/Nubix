@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.4.1] — 2026-08-27
+
+- After changing a remote's local path in Settings, a stale status badge (e.g. "Drive missing" from the old path) no longer sticks to the dashboard card — the status resets to Idle and the next sync re-evaluates from scratch
+- Read-only file events (opening/browsing files in the sync folder — file manager, backup tools, rclone's own listing scans) no longer trigger a sync; only actual writes (create/modify/delete/move) arm the auto-sync debounce
+- Console logging defaults to INFO instead of DEBUG, and watchdog's per-event debug output is silenced — running `nubix` in a terminal no longer floods it with thousands of inotify lines on large sync folders (set `NUBIX_DEBUG=1` for full debug output)
+
 ## [4.4.0] — 2026-08-27
 
 ### External drives (fixes the recurring "Sync Error" notifications)

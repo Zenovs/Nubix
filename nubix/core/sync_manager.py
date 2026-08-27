@@ -124,6 +124,13 @@ class SyncManager(QObject):
     def get_status(self, job_id: str) -> JobStatus:
         return self._statuses.get(job_id, JobStatus.IDLE)
 
+    def reset_status(self, job_id: str) -> None:
+        """Reset a non-running job's status to IDLE (e.g. after its settings changed)."""
+        if self._is_active(job_id):
+            return
+        if self._statuses.get(job_id, JobStatus.IDLE) != JobStatus.IDLE:
+            self._set_status(job_id, JobStatus.IDLE)
+
     def active_job_ids(self) -> list[str]:
         return [
             jid

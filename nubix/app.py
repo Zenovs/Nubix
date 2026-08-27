@@ -5,6 +5,7 @@ NubixApp — wires all subsystems together and manages application lifecycle.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -26,14 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 def _setup_logging():
+    # INFO by default — set NUBIX_DEBUG=1 for full debug output.
+    level = logging.DEBUG if os.environ.get("NUBIX_DEBUG") else logging.INFO
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
     # Quieten noisy libraries
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("requests").setLevel(logging.WARNING)
+    # watchdog logs every single inotify event at DEBUG — with large sync
+    # trees that floods the console and burns CPU even under NUBIX_DEBUG.
+    logging.getLogger("watchdog").setLevel(logging.WARNING)
 
 
 class NubixApp:
@@ -247,6 +253,11 @@ class NubixApp:
         """Refresh scheduler and file watcher when a remote's settings change."""
         self._file_watcher.remove_watch(rc.remote_id)
         self._register_watcher(rc)
+        # A stale status (e.g. "Drive missing" from an old local_path) must not
+        # stick to the card after the settings changed — the next sync attempt
+        # re-evaluates from scratch anyway.
+        if self._sync_manager:
+            self._sync_manager.reset_status(rc.remote_id)
         self._scheduler.remove_job(rc.remote_id)
         if rc.is_enabled and rc.is_scheduled:
             job = rc.to_sync_job()

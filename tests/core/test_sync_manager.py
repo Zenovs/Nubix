@@ -134,3 +134,23 @@ def test_generic_start_failure_still_reports_error(manager, engine, job):
     manager.start_job(job)
     assert manager.get_status(job.job_id) == JobStatus.ERROR
     assert len(failed) == 1
+
+
+def test_reset_status_clears_stale_waiting_state(manager, engine, job):
+    """After the user changes a remote's local path, a stale 'Drive missing'
+    badge must not stick to the card."""
+    from nubix.exceptions import LocalDriveNotMountedError
+
+    engine.start_sync.side_effect = LocalDriveNotMountedError(job.local_path, "/mnt/x")
+    manager.start_job(job)
+    assert manager.get_status(job.job_id) == JobStatus.WAITING_FOR_DRIVE
+
+    manager.reset_status(job.job_id)
+    assert manager.get_status(job.job_id) == JobStatus.IDLE
+
+
+def test_reset_status_does_not_touch_running_job(manager, engine, job):
+    manager.start_job(job)
+    assert manager.get_status(job.job_id) == JobStatus.SYNCING
+    manager.reset_status(job.job_id)
+    assert manager.get_status(job.job_id) == JobStatus.SYNCING
