@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.4.0] — 2026-08-27
+
+### External drives (fixes the recurring "Sync Error" notifications)
+
+- Sync paths on unplugged external drives are now detected correctly: `/run/media/…` (the udisks2 default on Ubuntu) is recognized in addition to `/media/…` and `/mnt/…`. Previously such paths produced the misleading "Local sync directory does not exist and could not be created" error
+- An unplugged drive is no longer treated as an error: the job enters a new "Drive missing" state (amber badge on the dashboard), a single informational notification is shown, and syncing resumes automatically as soon as the drive is mounted again — instead of a critical error popup every 5 minutes
+- The mount-point check now runs BEFORE the sync directory is created. Previously, if the directory could be created under an unmounted mount point, bisync would sync onto the system partition — filling the root disk on `--resync` or propagating deletions from the empty tree
+- The same guard protects the file watcher (no more watching/creating directories on the system partition) and VFS mounts (a mount whose mountpoint drive is unplugged is deferred and retried automatically instead of failing with a FUSE error dialog)
+
+### Notifications
+
+- Desktop notifications are throttled: at most one error notification per sync run. Previously every single rclone error line produced its own popup (a failing sync could flood the desktop with dozens of notifications)
+- The Settings → General → Notifications choice ("All events" / "Errors only" / "None") is now actually honored — "None" really suppresses tray popups. Previously the setting was saved but ignored
+
+### Scheduling
+
+- The 5-minute auto-sync and the file watcher now respect configured schedule windows. Previously a job scheduled for e.g. 22:00–06:00 was still synced around the clock, defeating the schedule
+
 ## [4.3.0] — 2026-07-03
 
 ### Stability & data safety

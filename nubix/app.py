@@ -44,6 +44,11 @@ class NubixApp:
         self._qt_app = qt_app
         self._window = None
         self._tray = None
+        # Notification throttles: job_failed fires once per rclone error LINE,
+        # and the auto-sync timer retries every 5 minutes — without these sets
+        # an unplugged drive or a flaky remote floods the desktop with popups.
+        self._drive_notified: set[str] = set()  # jobs already notified "drive missing"
+        self._error_notified: set[str] = set()  # jobs already notified this run
 
         # --- Core subsystems (dependency order) ---
         self._config = ConfigManager()
@@ -123,9 +128,11 @@ class NubixApp:
             self._tray.check_updates_requested.connect(self._updater.check_for_updates)
             if self._sync_manager:
                 self._sync_manager.any_job_active.connect(self._tray.set_syncing)
-                self._sync_manager.job_failed.connect(
-                    lambda jid, err: self._tray.notify("Sync Error", err, error=True)
-                )
+                self._sync_manager.job_failed.connect(self._notify_job_failed)
+                self._sync_manager.job_skipped.connect(self._notify_job_skipped)
+                # A job that actually starts clears its throttles, so the next
+                # genuine failure (or drive removal) notifies again — once.
+                self._sync_manager.job_started.connect(self._reset_notify_throttle)
             self._tray.show()
 
         # Connect updater
@@ -185,6 +192,32 @@ class NubixApp:
             self._window.raise_()
             self._window.activateWindow()
 
+    # ------------------------------------------------------------------
+    # Tray notifications (throttled, honoring Settings → Notifications)
+    # ------------------------------------------------------------------
+
+    def _notifications_enabled(self) -> bool:
+        return self._config.get("general.notifications", "errors_only") != "none"
+
+    def _notify_job_failed(self, job_id: str, err: str) -> None:
+        if job_id in self._error_notified:
+            return
+        self._error_notified.add(job_id)
+        if self._tray and self._notifications_enabled():
+            self._tray.notify("Sync Error", err, error=True)
+
+    def _notify_job_skipped(self, job_id: str, reason: str) -> None:
+        # One informational popup per unplugged-drive phase, not one per retry.
+        if job_id in self._drive_notified:
+            return
+        self._drive_notified.add(job_id)
+        if self._tray and self._notifications_enabled():
+            self._tray.notify("Sync Paused", reason, error=False)
+
+    def _reset_notify_throttle(self, job_id: str) -> None:
+        self._drive_notified.discard(job_id)
+        self._error_notified.discard(job_id)
+
     def _on_remote_added(self, rc) -> None:
         """Register watcher or start mount for a newly added remote."""
         from nubix.core.sync_job import SyncMode
@@ -225,13 +258,22 @@ class NubixApp:
 
     def _register_watcher(self, rc) -> None:
         """Add a file system watch for *rc* if eligible (enabled, non-mount)."""
+        from nubix.core.local_drive import missing_mount_for
         from nubix.core.sync_job import SyncMode
 
         if not rc.is_enabled:
             return
         if rc.sync_mode == SyncMode.MOUNT:
             return  # mount-mode writes directly through FUSE — no watcher needed
+        if rc.remote_id in self._file_watcher.watched_ids():
+            return  # already watching
         local = Path(rc.local_path)
+        # Never mkdir on an unplugged external drive — that would create the
+        # directory on the system partition and watch (and later sync) the
+        # wrong disk. The auto-sync tick re-registers once the drive is back.
+        if missing_mount_for(local) is not None:
+            logger.info("Watcher for %s deferred — drive not mounted (%s)", rc.remote_id, local)
+            return
         # Create the local directory if it doesn't exist yet so the watcher
         # can be registered immediately rather than being silently skipped.
         try:
@@ -246,6 +288,15 @@ class NubixApp:
                 "Cannot register watcher for %s: path %s does not exist", rc.remote_id, local
             )
 
+    @staticmethod
+    def _sync_allowed_now(job) -> bool:
+        """Scheduled jobs may only run inside their configured time windows."""
+        from nubix.core.scheduler import is_in_window
+
+        if not job.is_scheduled or not job.schedule_windows:
+            return True
+        return is_in_window(job.schedule_windows)
+
     def _auto_sync_all(self) -> None:
         """Triggered every 5 minutes — sync all enabled non-mount remotes."""
         if not self._sync_manager:
@@ -253,9 +304,30 @@ class NubixApp:
         from nubix.core.sync_job import SyncMode
 
         for rc in self._registry.list_remotes():
-            if rc.is_enabled and rc.sync_mode != SyncMode.MOUNT:
-                logger.debug("Auto-sync: starting job for %s", rc.remote_id)
-                self._sync_manager.start_job(rc.to_sync_job())
+            if not rc.is_enabled:
+                continue
+            if rc.sync_mode == SyncMode.MOUNT:
+                # Retry mounts that were deferred because their drive was
+                # unplugged. mount() re-checks the drive and defers again
+                # silently if it is still missing.
+                if self._mount_manager and self._mount_manager.is_waiting_for_drive(rc.remote_id):
+                    self._mount_manager.mount(
+                        rc.remote_id,
+                        rc.remote_path,
+                        Path(rc.local_path),
+                        rc.mount_cache_mode,
+                        rc.mount_cache_size,
+                    )
+                continue
+            # Re-register the watcher for drives that were unplugged at
+            # startup and have been mounted since (no-op when watching).
+            self._register_watcher(rc)
+            job = rc.to_sync_job()
+            if not self._sync_allowed_now(job):
+                logger.debug("Auto-sync: %s outside its schedule window", rc.remote_id)
+                continue
+            logger.debug("Auto-sync: starting job for %s", rc.remote_id)
+            self._sync_manager.start_job(job)
 
     def _on_watcher_sync_needed(self, remote_id: str) -> None:
         """Triggered by file watcher debounce — start a sync if not already running."""
@@ -263,8 +335,12 @@ class NubixApp:
             return
         for rc in self._registry.list_remotes():
             if rc.remote_id == remote_id:
+                job = rc.to_sync_job()
+                if not self._sync_allowed_now(job):
+                    logger.debug("Watcher sync for %s outside its schedule window", remote_id)
+                    return
                 logger.info("Auto-sync triggered by file change: %s", remote_id)
-                self._sync_manager.start_job(rc.to_sync_job())
+                self._sync_manager.start_job(job)
                 return
 
     def _on_scheduler_trigger_start(self, job_id: str):
@@ -320,7 +396,10 @@ class _NullSyncManager:
 
     def __init__(self):
         self.any_job_active = _NullSignal()
+        self.job_started = _NullSignal()
+        self.job_finished = _NullSignal()
         self.job_failed = _NullSignal()
+        self.job_skipped = _NullSignal()
         self.job_status_changed = _NullSignal()
         self.progress_updated = _NullSignal()
         self.file_transferred = _NullSignal()

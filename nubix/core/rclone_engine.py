@@ -20,9 +20,15 @@ from typing import Optional
 from PySide6.QtCore import QObject, QThread, Signal
 
 from nubix.constants import BISYNC_STATE_FILE, RCLONE_BINARY, RCLONE_CONFIG_FILE
+from nubix.core.local_drive import missing_mount_for
 from nubix.core.rclone_parser import parse_error_line, parse_progress_line
 from nubix.core.sync_job import SyncJob, SyncMode, TransferStats
-from nubix.exceptions import RcloneExecutionError, RcloneNotFoundError, RemoteNotConfiguredError
+from nubix.exceptions import (
+    LocalDriveNotMountedError,
+    RcloneExecutionError,
+    RcloneNotFoundError,
+    RemoteNotConfiguredError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -471,26 +477,19 @@ class RcloneEngine(QObject):
 
     def start_sync(self, job: SyncJob) -> RcloneProcess:
         """Build rclone command and launch a sync subprocess."""
+        # Refuse to touch paths on an unplugged external drive BEFORE any mkdir:
+        # creating the directory on the system partition would make bisync sync
+        # into the wrong disk (and propagate deletions from the empty tree).
+        missing_mount = missing_mount_for(job.local_path)
+        if missing_mount is not None:
+            raise LocalDriveNotMountedError(job.local_path, missing_mount)
+
         # Ensure local directory exists — bisync requires both paths to be present.
         try:
             job.local_path.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             logger.warning("Could not create local sync directory %s: %s", job.local_path, e)
         if not job.local_path.exists():
-            # Check whether the failure is due to a missing mount point (external drive).
-            # Walk up to find the first ancestor that does not exist.
-            missing = job.local_path
-            for parent in job.local_path.parents:
-                if not parent.exists():
-                    missing = parent
-                else:
-                    break
-            if str(missing).startswith("/media/") or str(missing).startswith("/mnt/"):
-                raise OSError(
-                    f"Sync path not accessible: {job.local_path}\n"
-                    f"The drive or mount point '{missing}' is not mounted. "
-                    f"Please plug in the drive and try again, or change the sync path in Settings."
-                )
             raise OSError(
                 f"Local sync directory does not exist and could not be created: {job.local_path}"
             )
@@ -593,6 +592,9 @@ class RcloneEngine(QObject):
         cache_size: str = "1G",
     ) -> subprocess.Popen:
         """Launch rclone mount as a foreground subprocess (caller manages its lifetime)."""
+        missing_mount = missing_mount_for(mountpoint)
+        if missing_mount is not None:
+            raise LocalDriveNotMountedError(mountpoint, missing_mount)
         try:
             mountpoint.mkdir(parents=True, exist_ok=True)
         except PermissionError:

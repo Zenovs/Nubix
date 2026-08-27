@@ -24,6 +24,7 @@ class JobStatus(str, Enum):
     ERROR = "error"
     UP_TO_DATE = "up_to_date"
     MOUNTED = "mounted"  # rclone mount is active
+    WAITING_FOR_DRIVE = "waiting_for_drive"  # local path on an unplugged external drive
 
 
 @dataclass

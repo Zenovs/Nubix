@@ -271,7 +271,7 @@ class SyncStatusCard(QFrame):
             self._spinner.stop()
         if status == JobStatus.UP_TO_DATE:
             self._progress.setValue(100)
-        if status in (JobStatus.IDLE, JobStatus.MOUNTED):
+        if status in (JobStatus.IDLE, JobStatus.MOUNTED, JobStatus.WAITING_FOR_DRIVE):
             self._progress.setValue(0)
             self._file_label.setText("")
             self._speed_label.setText("")

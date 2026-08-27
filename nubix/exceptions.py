@@ -33,6 +33,20 @@ class RcloneExecutionError(NubixError):
         )
 
 
+class LocalDriveNotMountedError(NubixError):
+    """The local sync path lies on an external drive that is not mounted."""
+
+    def __init__(self, local_path, mount_point):
+        self.local_path = local_path
+        self.mount_point = mount_point
+        super().__init__(
+            f"Drive not mounted for sync path {local_path} (expected mount: {mount_point})",
+            f"The drive for '{local_path}' is not connected "
+            f"('{mount_point}' is not mounted). "
+            "Syncing will resume automatically once the drive is plugged in.",
+        )
+
+
 class RemoteNotConfiguredError(NubixError):
     """The requested remote is not configured."""
 

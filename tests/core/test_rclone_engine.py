@@ -60,3 +60,21 @@ def test_configure_remote_fails_when_obscure_fails(engine, tmp_path):
     with patch.object(RcloneEngine, "_obscure", return_value=None):
         ok = engine.configure_remote("nc_1", ["webdav", "pass", "secret"])
     assert not ok
+
+
+def test_start_sync_refuses_unmounted_drive_before_mkdir(engine, tmp_path, monkeypatch):
+    """The drive check must run BEFORE mkdir — creating the sync directory on
+    the system partition would make bisync fill (or delete from) the wrong disk."""
+    from pathlib import Path
+
+    from nubix.core.sync_job import SyncJob
+    from nubix.exceptions import LocalDriveNotMountedError
+
+    local = Path("/run/media/user/DISK/nubix/dropbox")
+    job = SyncJob(remote_id="r1", provider_type="dropbox", local_path=local, remote_path="")
+    monkeypatch.setattr("os.path.ismount", lambda p: False)
+
+    with pytest.raises(LocalDriveNotMountedError) as exc:
+        engine.start_sync(job)
+    assert str(exc.value.mount_point) == "/run/media/user/DISK"
+    assert not local.exists()

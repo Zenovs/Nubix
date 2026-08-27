@@ -15,6 +15,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from nubix.core.rclone_engine import RcloneEngine
 from nubix.core.sync_job import JobStatus
+from nubix.exceptions import LocalDriveNotMountedError
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,9 @@ class MountManager(QObject):
         self._engine = engine
         # remote_id → (Popen, _MountWatcher, mountpoint)
         self._mounts: dict[str, tuple[subprocess.Popen, _MountWatcher, Path]] = {}
+        # Mounts deferred because their mountpoint's external drive was
+        # unplugged — retried by the app's periodic tick, not surfaced as errors.
+        self._waiting_for_drive: set[str] = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -72,10 +76,19 @@ class MountManager(QObject):
             proc = self._engine.start_mount(
                 remote_id, remote_path, mountpoint, cache_mode, cache_size
             )
+        except LocalDriveNotMountedError as e:
+            # Not an error: the external drive holding the mountpoint is
+            # unplugged. Remember it so the periodic tick retries silently.
+            logger.info("Mount for %s deferred — %s", remote_id, e)
+            self._waiting_for_drive.add(remote_id)
+            self._emit_status(remote_id, JobStatus.WAITING_FOR_DRIVE)
+            return
         except Exception as e:
             logger.error("Failed to start mount for %s: %s", remote_id, e)
             self.mount_failed.emit(remote_id, str(e))
             return
+
+        self._waiting_for_drive.discard(remote_id)
 
         # Parent the watcher to the manager so it cannot be garbage-collected
         # while its OS thread is still running (Qt aborts the process on
@@ -92,6 +105,7 @@ class MountManager(QObject):
 
     def unmount(self, remote_id: str) -> None:
         """Unmount and clean up for *remote_id*."""
+        self._waiting_for_drive.discard(remote_id)
         entry = self._mounts.pop(remote_id, None)
         if not entry:
             return
@@ -117,6 +131,10 @@ class MountManager(QObject):
 
     def is_mounted(self, remote_id: str) -> bool:
         return remote_id in self._mounts
+
+    def is_waiting_for_drive(self, remote_id: str) -> bool:
+        """True if this mount was deferred because its drive is unplugged."""
+        return remote_id in self._waiting_for_drive
 
     def mounted_ids(self) -> list[str]:
         return list(self._mounts.keys())

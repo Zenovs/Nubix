@@ -11,6 +11,7 @@ from PySide6.QtCore import QObject, Signal
 
 from nubix.core.rclone_engine import RcloneEngine, RcloneProcess
 from nubix.core.sync_job import JobStatus, SyncJob, TransferStats
+from nubix.exceptions import LocalDriveNotMountedError
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class SyncManager(QObject):
     job_started = Signal(str)  # job_id
     job_finished = Signal(str, int)  # job_id, exit_code
     job_failed = Signal(str, str)  # job_id, error_message
+    job_skipped = Signal(str, str)  # job_id, reason — e.g. external drive not mounted
     job_status_changed = Signal(str, str)  # job_id, JobStatus value
     progress_updated = Signal(str, object)  # job_id, TransferStats
     file_transferred = Signal(str, str)  # job_id, filename
@@ -74,6 +76,13 @@ class SyncManager(QObject):
 
             self.job_started.emit(job.job_id)
             self._emit_any_active()
+        except LocalDriveNotMountedError as e:
+            # Expected condition, not an error: the external drive is unplugged.
+            # The periodic auto-sync retries; once the drive is back, the next
+            # attempt succeeds without any user action.
+            logger.info("Job %s waiting for drive: %s", job.job_id, e)
+            self._set_status(job.job_id, JobStatus.WAITING_FOR_DRIVE)
+            self.job_skipped.emit(job.job_id, str(e.user_message))
         except Exception as e:
             logger.error("Failed to start job %s: %s", job.job_id, e)
             self._set_status(job.job_id, JobStatus.ERROR)

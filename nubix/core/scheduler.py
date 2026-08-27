@@ -24,7 +24,7 @@ def _windows_overlap(windows: list[TimeWindow]) -> bool:
     return False
 
 
-def _is_in_window(windows: list[TimeWindow]) -> bool:
+def is_in_window(windows: list[TimeWindow]) -> bool:
     """Return True if the current time falls inside any of the given windows."""
     now = datetime.now()
     weekday = now.weekday()  # 0=Monday
@@ -109,7 +109,7 @@ class Scheduler(QObject):
 
     def _tick(self):
         for job_id, job in list(self._jobs.items()):
-            in_window = _is_in_window(job.schedule_windows)
+            in_window = is_in_window(job.schedule_windows)
             was = self._was_in_window.get(job_id, False)
 
             if in_window and not was:
