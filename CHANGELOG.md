@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.4.2] — 2026-09-16
+
+- Autostart no longer pins an old version: the autostart entry written by Settings → Autostart now prefers the stable `nubix` launcher from PATH instead of the versioned AppImage path (`$APPIMAGE`). Previously, toggling any Settings while running an AppImage rewrote autostart to e.g. `Nubix-4.4.0.AppImage`, silently locking the machine to that version across updates
+- Transient sync errors no longer pop up a notification: a one-off cloud API hiccup ("unexpected error occurred" etc.) is healed by the automatic 5-minute retry, so the "Sync Error" popup now only appears when a sync fails repeatedly (and then only once until the next successful run). Failures to even start a job still notify immediately
+- File watcher registration reports failures honestly: when the per-user inotify watch limit is exhausted (IDEs/Electron apps hold tens of thousands of watches), the log no longer claims "Auto-watcher registered" and instead explains how to raise `fs.inotify.max_user_watches`; the periodic tick keeps retrying and recovers automatically once watches are available
+
 ## [4.4.1] — 2026-08-27
 
 - After changing a remote's local path in Settings, a stale status badge (e.g. "Drive missing" from the old path) no longer sticks to the dashboard card — the status resets to Idle and the next sync re-evaluates from scratch

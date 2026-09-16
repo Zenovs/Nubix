@@ -94,8 +94,11 @@ class GeneralTab(QWidget):
 
         AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
         if enable:
-            # Prefer $APPIMAGE path (set by AppImage runtime), fall back to PATH lookup
-            binary = os.environ.get("APPIMAGE") or shutil.which("nubix") or "nubix"
+            # Prefer the stable launcher from PATH (~/.local/bin/nubix): it is a
+            # symlink/script the installer keeps current. $APPIMAGE points at the
+            # versioned file (Nubix-X.Y.Z.AppImage) and would pin autostart to
+            # this exact version forever, silently skipping future updates.
+            binary = shutil.which("nubix") or os.environ.get("APPIMAGE") or "nubix"
             content = (
                 "[Desktop Entry]\n"
                 "Type=Application\n"

@@ -54,7 +54,9 @@ class NubixApp:
         # and the auto-sync timer retries every 5 minutes — without these sets
         # an unplugged drive or a flaky remote floods the desktop with popups.
         self._drive_notified: set[str] = set()  # jobs already notified "drive missing"
-        self._error_notified: set[str] = set()  # jobs already notified this run
+        self._error_notified: set[str] = set()  # jobs already notified since last success
+        self._run_active: set[str] = set()  # jobs with a running rclone process
+        self._failed_runs: dict[str, int] = {}  # consecutive failed runs per job
 
         # --- Core subsystems (dependency order) ---
         self._config = ConfigManager()
@@ -136,9 +138,8 @@ class NubixApp:
                 self._sync_manager.any_job_active.connect(self._tray.set_syncing)
                 self._sync_manager.job_failed.connect(self._notify_job_failed)
                 self._sync_manager.job_skipped.connect(self._notify_job_skipped)
-                # A job that actually starts clears its throttles, so the next
-                # genuine failure (or drive removal) notifies again — once.
-                self._sync_manager.job_started.connect(self._reset_notify_throttle)
+                self._sync_manager.job_finished.connect(self._on_job_finished_notify)
+                self._sync_manager.job_started.connect(self._on_job_started_notify)
             self._tray.show()
 
         # Connect updater
@@ -208,6 +209,12 @@ class NubixApp:
     def _notify_job_failed(self, job_id: str, err: str) -> None:
         if job_id in self._error_notified:
             return
+        # A mid-run rclone error is often a one-off (cloud API hiccup) that the
+        # 5-minute retry heals on its own — only notify once a previous run
+        # already failed. Failures to even start the job (job never ran) are
+        # configuration problems and notify immediately.
+        if job_id in self._run_active and self._failed_runs.get(job_id, 0) < 1:
+            return
         self._error_notified.add(job_id)
         if self._tray and self._notifications_enabled():
             self._tray.notify("Sync Error", err, error=True)
@@ -220,9 +227,19 @@ class NubixApp:
         if self._tray and self._notifications_enabled():
             self._tray.notify("Sync Paused", reason, error=False)
 
-    def _reset_notify_throttle(self, job_id: str) -> None:
+    def _on_job_started_notify(self, job_id: str) -> None:
+        self._run_active.add(job_id)
+        # The drive is back — notify again if it goes missing later.
         self._drive_notified.discard(job_id)
-        self._error_notified.discard(job_id)
+
+    def _on_job_finished_notify(self, job_id: str, exit_code: int) -> None:
+        self._run_active.discard(job_id)
+        if exit_code == 0:
+            # Healed: the next failure phase notifies again — once.
+            self._failed_runs.pop(job_id, None)
+            self._error_notified.discard(job_id)
+        else:
+            self._failed_runs[job_id] = self._failed_runs.get(job_id, 0) + 1
 
     def _on_remote_added(self, rc) -> None:
         """Register watcher or start mount for a newly added remote."""
@@ -292,8 +309,11 @@ class NubixApp:
         except OSError:
             pass
         if local.exists():
-            self._file_watcher.add_watch(rc.remote_id, local)
-            logger.info("Auto-watcher registered for %s → %s", rc.remote_id, local)
+            # add_watch may fail (e.g. inotify limit) — the periodic auto-sync
+            # tick retries, so a later attempt can still succeed. Only claim
+            # success when the watch was actually registered.
+            if self._file_watcher.add_watch(rc.remote_id, local):
+                logger.info("Auto-watcher registered for %s → %s", rc.remote_id, local)
         else:
             logger.warning(
                 "Cannot register watcher for %s: path %s does not exist", rc.remote_id, local

@@ -94,12 +94,12 @@ class FileWatcher(QObject):
             self._started = False
         logger.info("FileWatcher stopped")
 
-    def add_watch(self, remote_id: str, local_path: Path) -> None:
-        """Start watching *local_path* for *remote_id*."""
+    def add_watch(self, remote_id: str, local_path: Path) -> bool:
+        """Start watching *local_path* for *remote_id*. Returns True on success."""
         if not self._started or not self._observer:
-            return
+            return False
         if remote_id in self._watches:
-            return  # already watching
+            return True  # already watching
 
         try:
             handler = _DebounceHandler(remote_id, self._on_fs_event)
@@ -107,8 +107,19 @@ class FileWatcher(QObject):
             self._watches[remote_id] = watch
             self._paths[remote_id] = local_path
             logger.info("Watching %s for remote %s", local_path, remote_id)
+            return True
         except Exception as e:
-            logger.warning("Could not add watch for %s (%s): %s", remote_id, local_path, e)
+            hint = ""
+            if "inotify watch limit" in str(e) or getattr(e, "errno", None) == 28:
+                # The limit is per user across ALL programs (IDEs and Electron
+                # apps hold tens of thousands) — the folder itself may be small.
+                hint = (
+                    " — the per-user inotify limit is exhausted; raise it with:"
+                    " echo fs.inotify.max_user_watches=1048576 | sudo tee"
+                    " /etc/sysctl.d/60-inotify.conf && sudo sysctl --system"
+                )
+            logger.warning("Could not add watch for %s (%s): %s%s", remote_id, local_path, e, hint)
+            return False
 
     def remove_watch(self, remote_id: str) -> None:
         """Stop watching the directory for *remote_id*."""
