@@ -1,5 +1,9 @@
 # Changelog
 
+## [4.4.4] — 2026-09-17
+
+- Error messages no longer contain raw ANSI color codes: rclone colors parts of its bisync messages even in JSON logs, which rendered as `[31m`/`[0m` garbage in desktop notifications and the log view. Escape sequences are now stripped centrally in the parser, and a colored `ERROR:` prefix no longer hides an error from detection
+
 ## [4.4.3] — 2026-09-17
 
 - No more "Sync Error" popups for bisync's own recovery steps: when a run is aborted mid-listing (e.g. a nightly cloud API outage) bisync discards its listings and the next run rebuilds them with an automatic `--resync`. The intermediate errors of that self-healing sequence ("cannot find prior listings", "Must run --resync to recover", too-many-deletes safety stop) are now logged but never notified — genuine, persistent sync failures still are

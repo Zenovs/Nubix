@@ -93,3 +93,24 @@ class TestParseErrorLine:
         result = parse_error_line(json.dumps(data))
         assert result is not None
         assert result.category == "auth"
+
+
+def test_error_messages_are_stripped_of_ansi_colors():
+    """rclone colors bisync messages even with --use-json-log — raw escape
+    sequences render as '[31m' garbage in desktop notifications."""
+    import json
+
+    from nubix.core.rclone_parser import parse_error_line, strip_ansi
+
+    msg = "\x1b[31mBisync critical error: cannot find prior listings\x1b[0m \x1b[35mTip: x\x1b[0m"
+    line = json.dumps({"level": "error", "msg": msg})
+    err = parse_error_line(line)
+    assert err is not None
+    assert "\x1b" not in err.message
+    assert "[31m" not in err.message
+    assert err.message.startswith("Bisync critical error")
+
+    plain = parse_error_line("\x1b[31mERROR : boom\x1b[0m")
+    assert plain is not None and plain.message == "ERROR : boom"
+
+    assert strip_ansi("no escapes here") == "no escapes here"

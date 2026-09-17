@@ -46,6 +46,17 @@ _SIZE_UNITS = {
     "tb": 1000**4,
 }
 
+# rclone colors parts of its (bisync) messages even with --use-json-log; raw
+# escape sequences like "\x1b[31m" render as "[31m" garbage in desktop
+# notifications and log viewers.
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences (colors, cursor moves) from *text*."""
+    return _ANSI_ESCAPE_RE.sub("", text)
+
+
 _ERROR_PATTERNS = [
     (re.compile(r"401|403|unauthorized|forbidden|invalid_grant|token", re.I), "auth"),
     (re.compile(r"quota|storage.*full|no space|insufficient", re.I), "quota"),
@@ -167,7 +178,7 @@ def parse_error_line(line: str) -> Optional[RcloneError]:
             data = json.loads(line)
             level = data.get("level", "")
             if level in ("error", "critical"):
-                msg = data.get("msg", line)
+                msg = strip_ansi(data.get("msg", line))
                 return RcloneError(
                     category=_classify_error(msg),
                     message=msg,
@@ -176,11 +187,13 @@ def parse_error_line(line: str) -> Optional[RcloneError]:
         except json.JSONDecodeError:
             pass
 
-    # Check for ERROR: prefix in plain text
-    if re.match(r"ERROR\s*:", line, re.I) or re.match(r"CRITICAL\s*:", line, re.I):
+    # Check for ERROR: prefix in plain text (strip colors first — a leading
+    # escape sequence would otherwise hide the prefix from the match)
+    plain = strip_ansi(line)
+    if re.match(r"ERROR\s*:", plain, re.I) or re.match(r"CRITICAL\s*:", plain, re.I):
         return RcloneError(
-            category=_classify_error(line),
-            message=line,
+            category=_classify_error(plain),
+            message=plain,
             raw_line=line,
         )
 
