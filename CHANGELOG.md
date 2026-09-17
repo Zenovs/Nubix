@@ -1,5 +1,9 @@
 # Changelog
 
+## [4.4.3] — 2026-09-17
+
+- No more "Sync Error" popups for bisync's own recovery steps: when a run is aborted mid-listing (e.g. a nightly cloud API outage) bisync discards its listings and the next run rebuilds them with an automatic `--resync`. The intermediate errors of that self-healing sequence ("cannot find prior listings", "Must run --resync to recover", too-many-deletes safety stop) are now logged but never notified — genuine, persistent sync failures still are
+
 ## [4.4.2] — 2026-09-16
 
 - Autostart no longer pins an old version: the autostart entry written by Settings → Autostart now prefers the stable `nubix` launcher from PATH instead of the versioned AppImage path (`$APPIMAGE`). Previously, toggling any Settings while running an AppImage rewrote autostart to e.g. `Nubix-4.4.0.AppImage`, silently locking the machine to that version across updates

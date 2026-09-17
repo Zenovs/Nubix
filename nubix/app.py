@@ -25,6 +25,20 @@ from nubix.exceptions import RcloneNotFoundError
 
 logger = logging.getLogger(__name__)
 
+# bisync errors that Nubix recovers from on its own (automatic --resync on the
+# next run). They describe the recovery mechanism, not a condition the user
+# could act on — popping up "Sync Error" for them is pure noise.
+_SELF_HEALING_ERRORS = (
+    "cannot find prior Path1 or Path2 listings",
+    "Must run --resync to recover",
+    "too many deletes",
+)
+
+
+def is_self_healing_error(message: str) -> bool:
+    """True if this sync error is fixed automatically by the next run."""
+    return any(marker in message for marker in _SELF_HEALING_ERRORS)
+
 
 def _setup_logging():
     # INFO by default — set NUBIX_DEBUG=1 for full debug output.
@@ -207,6 +221,9 @@ class NubixApp:
         return self._config.get("general.notifications", "errors_only") != "none"
 
     def _notify_job_failed(self, job_id: str, err: str) -> None:
+        if is_self_healing_error(err):
+            logger.info("Job %s: self-healing bisync condition, no notification: %s", job_id, err)
+            return
         if job_id in self._error_notified:
             return
         # A mid-run rclone error is often a one-off (cloud API hiccup) that the
